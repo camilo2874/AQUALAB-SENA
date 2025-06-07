@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -295,6 +295,15 @@ const TIPOS_ANALISIS_ENUM = {
   MICROBIOLOGICO: 'Microbiológico',
 } as const;
 
+function useDebouncedValue<T>(value: T, delay = 400): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
+
 const RegistroMuestras: React.FC = () => {
   const navigate = useNavigate();
   const [adminData, setAdminData] = useState<AdminData | null>(null);
@@ -328,18 +337,15 @@ const RegistroMuestras: React.FC = () => {
   const [analisisError, setAnalisisError] = useState<string | null>(null);
   const [analisisSuccess, setAnalisisSuccess] = useState<string | null>(null);
   const [editingAnalisis, setEditingAnalisis] = useState<AnalisisCategoria | null>(null);
-  
-
-  
+  const firmaAdministradorRef = useRef<SignatureCanvas | null>(null);
+  const firmaClienteRef = useRef<SignatureCanvas | null>(null);
+  const debouncedDocumento = useDebouncedValue(formData.documento, 400);
 
   // Limpia solo campos de muestra
   const clearUniqueFields = () => {
     setFormData(prev => ({ ...prev, observaciones: '' }));
     setMostrarFirmas(false);
   };
-
-  const firmaAdministradorRef = useRef<SignatureCanvas | null>(null);
-  const firmaClienteRef = useRef<SignatureCanvas | null>(null);
 
   useEffect(() => {
     const verificarAdmin = async () => {
@@ -447,10 +453,7 @@ const RegistroMuestras: React.FC = () => {
     if (openAnalisisModal) cargarTodosAnalisis();
   }, [openAnalisisModal]);
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
-    setPagination(prev => ({ ...prev, page: value }));
-  };
-
+  // Debounce para validación de usuario por documento
   const validarFormulario = (data: MuestraFormData): Record<string, string> => {
     const errores: Record<string, string> = {};
     if (!data.documento) errores.documento = 'El documento es requerido';
@@ -482,53 +485,56 @@ const RegistroMuestras: React.FC = () => {
     return errores;
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent,
-  ) => {
-    const { name, value } = e.target as HTMLInputElement;
-    if (name === 'tipoAgua') {
-      const codigo = getTipoAguaCodigo(value);
-      setFormData(prev => ({
-        ...prev,
-        tipoDeAgua: {
-          ...prev.tipoDeAgua,
-          tipo: value,
-          codigo,
-          descripcion: value === 'otra'
-            ? ''
-            : value === 'potable'
-              ? 'Agua potable'
-              : value === 'natural'
-                ? 'Agua natural'
-                : prev.tipoDeAgua.descripcion,
-          subtipo: value === 'residual' ? prev.tipoDeAgua.subtipo : undefined,
-        },
-      }));
-    } else if (name === 'descripcion') {
-      setFormData(prev => ({
-        ...prev,
-        tipoDeAgua: { ...prev.tipoDeAgua, descripcion: value },
-      }));
-    } else if (name === 'tipoAguaResidual') {
-      setFormData(prev => ({
-        ...prev,
-        tipoDeAgua: {
-          ...prev.tipoDeAgua,
-          subtipo: value,
-          descripcion: `Agua residual ${value}`,
-        },
-      }));
-    } else if (name === 'preservacionMuestra') {
-      setFormData(prev => ({ ...prev, preservacionMuestra: value as TipoPreservacion }));
-    } else if (name === 'tipoMuestreo') {
-      setFormData(prev => ({ ...prev, tipoMuestreo: value as TipoMuestreo }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-    setError(null);
-  };
+  const handleChange = useCallback(
+    (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent,
+    ) => {
+      const { name, value } = e.target as HTMLInputElement;
+      if (name === 'tipoAgua') {
+        const codigo = getTipoAguaCodigo(value);
+        setFormData(prev => ({
+          ...prev,
+          tipoDeAgua: {
+            ...prev.tipoDeAgua,
+            tipo: value,
+            codigo,
+            descripcion: value === 'otra'
+              ? ''
+              : value === 'potable'
+                ? 'Agua potable'
+                : value === 'natural'
+                  ? 'Agua natural'
+                  : prev.tipoDeAgua.descripcion,
+            subtipo: value === 'residual' ? prev.tipoDeAgua.subtipo : undefined,
+          },
+        }));
+      } else if (name === 'descripcion') {
+        setFormData(prev => ({
+          ...prev,
+          tipoDeAgua: { ...prev.tipoDeAgua, descripcion: value },
+        }));
+      } else if (name === 'tipoAguaResidual') {
+        setFormData(prev => ({
+          ...prev,
+          tipoDeAgua: {
+            ...prev.tipoDeAgua,
+            subtipo: value,
+            descripcion: `Agua residual ${value}`,
+          },
+        }));
+      } else if (name === 'preservacionMuestra') {
+        setFormData(prev => ({ ...prev, preservacionMuestra: value as TipoPreservacion }));
+      } else if (name === 'tipoMuestreo') {
+        setFormData(prev => ({ ...prev, tipoMuestreo: value as TipoMuestreo }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
+      setError(null);
+    },
+    [],
+  );
 
-  const handleValidateUser = async () => {
+  const handleValidateUser = useCallback(async () => {
     if (!formData.documento) {
       setUserValidationError('Por favor ingrese el documento.');
       return;
@@ -555,113 +561,117 @@ const RegistroMuestras: React.FC = () => {
     } finally {
       setValidatingUser(false);
     }
-  };
+  }, [formData.documento]);
 
-  const decodeToken = (token: string) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join(''),
-      );
-      return JSON.parse(jsonPayload);
-    } catch {
-      return null;
-    }
-  };
-
-  const obtenerDatosUsuario = () => {
-    const token = localStorage.getItem('token');
-    if (!token) throw new Error('No hay token. Inicie sesión.');
-    let userData;
-    try {
-      const stored = localStorage.getItem('usuario') || localStorage.getItem('user');
-      if (stored) userData = JSON.parse(stored);
-      else {
-        const decoded = decodeToken(token);
-        if (decoded) userData = { ...decoded, documento: decoded.documento || decoded.id };
-      }
-      if (!userData || !userData._id) throw new Error('Datos de usuario incompletos.');
-      return { userData, token };
-    } catch {
-      throw new Error('Error al obtener usuario. Inicie sesión.');
-    }
-  };
-
-  const limpiarFirma = (tipo: 'administrador' | 'cliente') => {
-    if (tipo === 'administrador') firmaAdministradorRef.current?.clear();
-    if (tipo === 'cliente') firmaClienteRef.current?.clear();
-  };
-
-  const validarFirmas = () => {
-    if (!isRejected) {
-      if (!formData.firmas.firmaAdministrador.firma) {
-        setError('Firma del administrador requerida');
-        return false;
-      }
-      if (!formData.firmas.firmaCliente.firma) {
-        setError('Firma del cliente requerida');
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const cargarMuestraExistente = async (id: string) => {
-    try {
-      const res = await muestrasService.obtenerMuestra(id);
-      if (res.data) {
-        const m = res.data;
-        setFormData({
-          documento: m.documento,
-          tipoDeAgua: m.tipoDeAgua || { tipo: '', codigo: '', descripcion: '' },
-          tipoMuestreo: m.tipoMuestreo || 'Simple',
-          lugarMuestreo: m.lugarMuestreo,
-          fechaHoraMuestreo: m.fechaHoraMuestreo,
-          tipoAnalisis: m.tipoAnalisis || '',
-          identificacionMuestra: m.identificacionMuestra,
-          planMuestreo: m.planMuestreo,
-          condicionesAmbientales: m.condicionesAmbientales,
-          preservacionMuestra: m.preservacionMuestra as TipoPreservacion,
-          preservacionMuestraOtra: m.preservacionMuestraOtra || '',
-          analisisSeleccionados: m.analisisSeleccionados || [],
-          firmas: m.firmas || {
-            firmaAdministrador: { firma: '', nombre: '', documento: '' },
-            firmaCliente: { firma: '', nombre: '', documento: '' },
-          },
-          observaciones: m.observaciones || '',
-        });
-        setMuestraId(id);
-        setIsUpdating(true);
-        if (m.documento) {
-          setFormData(prev => ({ ...prev, documento: m.documento }));
-          await handleValidateUser();
-        }
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar la muestra');
-    }
-  };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    if (id) cargarMuestraExistente(id);
+  const handlePageChange = useCallback((_: React.ChangeEvent<unknown>, value: number) => {
+    setPagination(prev => ({ ...prev, page: value }));
   }, []);
 
-  const handleOpenRechazoModal = () => setOpenRechazoModal(true);
-  const handleCloseRechazoModal = () => setOpenRechazoModal(false);
-  const handleConfirmarRechazo = () => {
-    if (!observacionRechazo.trim()) {
-      setError('Debe ingresar observación de rechazo.');
-      return;
+  // Eliminar logs innecesarios en producción
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      // eslint-disable-next-line no-console
+      console.log = () => {};
+      // eslint-disable-next-line no-console
+      console.error = () => {};
     }
-    setIsRejected(true);
-    setOpenRechazoModal(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    const cargarAnalisis = async (signal: AbortSignal) => {
+      try {
+        if (!formData.tipoAnalisis) return;
+        setLoadingAnalisis(true);
+        setError(null);
+        const endpoint = formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.FISICOQUIMICO
+          ? API_URLS.ANALISIS_FISICOQUIMICOS
+          : API_URLS.ANALISIS_MICROBIOLOGICOS;
+        const response = await axios.get(endpoint, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+          signal,
+        });
+        if (response.data && response.data.success && Array.isArray(response.data.data)) {
+          setAnalisisDisponibles(prev => ({
+            fisicoquimico: formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.FISICOQUIMICO
+              ? response.data.data.filter((a: AnalisisCategoria) => a.activo)
+              : (prev?.fisicoquimico || []),
+            microbiologico: formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.MICROBIOLOGICO
+              ? response.data.data.filter((a: AnalisisCategoria) => a.activo)
+              : (prev?.microbiologico || []),
+          }));
+        } else if (Array.isArray(response.data)) {
+          setAnalisisDisponibles(prev => ({
+            fisicoquimico: formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.FISICOQUIMICO
+              ? response.data.filter((a: AnalisisCategoria) => a.activo)
+              : (prev?.fisicoquimico || []),
+            microbiologico: formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.MICROBIOLOGICO
+              ? response.data.filter((a: AnalisisCategoria) => a.activo)
+              : (prev?.microbiologico || []),
+          }));
+        } else {
+          throw new Error('Formato de respuesta inválido. Contacte al administrador.');
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Error al cargar análisis:', err);
+          setError(`Error al cargar análisis: ${err.message}`);
+          setAnalisisDisponibles(null);
+        }
+      } finally {
+        setLoadingAnalisis(false);
+      }
+    };
+    const controller = new AbortController();
+    if (formData.tipoAnalisis) cargarAnalisis(controller.signal);
+    return () => controller.abort();
+  }, [formData.tipoAnalisis]);
+
+  useEffect(() => {
+    const cargarTodosAnalisis = async () => {
+      try {
+        const response = await axios.get(`${API_URLS.ANALISIS}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (Array.isArray(response.data)) {
+          setAllAnalisis(response.data);
+        } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
+          setAllAnalisis(response.data.data);
+        } else {
+          throw new Error('Formato de respuesta inválido.');
+        }
+      } catch (err: any) {
+        console.error('Error al cargar todos los análisis:', err);
+        setAnalisisError(`Error al cargar análisis: ${err.message}`);
+      }
+    };
+    if (openAnalisisModal) cargarTodosAnalisis();
+  }, [openAnalisisModal]);
+
+  // Feedback visual si no hay análisis disponibles
+  const noAnalisisMsg = useMemo(() => {
+    if (formData.tipoAnalisis && analisisDisponibles) {
+      const arr = formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.FISICOQUIMICO
+        ? analisisDisponibles.fisicoquimico
+        : analisisDisponibles.microbiologico;
+      if (arr.length === 0) return 'No hay análisis disponibles para este tipo.';
+    }
+    return '';
+  }, [formData.tipoAnalisis, analisisDisponibles]);
+
+  // Foco automático en el primer campo con error
+  const firstErrorRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (error && firstErrorRef.current) {
+      firstErrorRef.current.focus();
+    }
+  }, [error]);
+
   const handleCotizacion = async () => {
     // Validar formulario (sin firmas)
     const errores = validarFormulario(formData);
@@ -1235,6 +1245,51 @@ const RegistroMuestras: React.FC = () => {
     }
   };
 
+  // Obtener datos del usuario autenticado desde localStorage
+  function obtenerDatosUsuario() {
+    const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    if (!userStr || !token) throw new Error('No autenticado');
+    const userData = JSON.parse(userStr);
+    return { userData, token };
+  }
+
+  // Validar que ambas firmas estén presentes antes de registrar
+  function validarFirmas() {
+    if (!formData.firmas.firmaAdministrador.firma) {
+      setError('La firma del administrador es obligatoria.');
+      return false;
+    }
+    if (!formData.firmas.firmaCliente.firma) {
+      setError('La firma del cliente es obligatoria.');
+      return false;
+    }
+    setError(null);
+    return true;
+  }
+
+  // Abrir modal de rechazo y limpiar observación
+  const handleOpenRechazoModal = useCallback(() => {
+    setOpenRechazoModal(true);
+    setObservacionRechazo('');
+  }, []);
+
+  // Confirmar rechazo de muestra desde el modal
+  const handleConfirmarRechazo = useCallback(async () => {
+    if (!observacionRechazo.trim()) {
+      setError('Debe ingresar una observación para el rechazo.');
+      return;
+    }
+    setIsRejected(true);
+    setOpenRechazoModal(false);
+    // El submit se encarga de registrar la muestra rechazada
+    setTimeout(() => {
+      // Disparar el submit del formulario
+      const form = document.querySelector('form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }, 100);
+  }, [observacionRechazo]);
+
   const limpiarEstado = () => {
     setFormData(initialFormData);
     setFirmas(initialFirmasState);
@@ -1772,6 +1827,8 @@ const RegistroMuestras: React.FC = () => {
                   variant="contained"
                   sx={{
                     flex: 1,
+
+
                     borderRadius: 2,
                     bgcolor: '#39A900',
                     '&:hover': { bgcolor: '#2d8600', transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' },
@@ -1989,7 +2046,7 @@ const RegistroMuestras: React.FC = () => {
     setNewAnalisisData(initialNewAnalisisData);
     setAnalisisError(null);
     setAnalisisSuccess(null);
-    setEditingAnalisis(null); // Reset editing state
+    setEditingAnalisis(null);
   }}
   closeAfterTransition
   slots={{ backdrop: Backdrop }}
@@ -2002,7 +2059,7 @@ const RegistroMuestras: React.FC = () => {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: 800,
+        width: 600,
         bgcolor: 'background.paper',
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
         p: 4,
@@ -2041,7 +2098,6 @@ const RegistroMuestras: React.FC = () => {
             </TableHead>
             <TableBody>
               {allAnalisis.map(analisis => {
-                console.log('Analysis object:', analisis);
                 return (
                   <TableRow
                     key={analisis._id || analisis.nombre}

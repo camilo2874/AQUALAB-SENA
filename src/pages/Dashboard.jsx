@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import {
   Grid,
@@ -309,6 +309,67 @@ const Dashboard = () => {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [userError, setUserError] = useState(null);
 
+  // Memoizar datos de tarjetas y clientes para evitar renders innecesarios y conflictos de nombres
+  const statCardData = useMemo(() => [
+    {
+      title: "Muestras Recibidas",
+      value: sampleStats.totalAllSamples,
+      icon: <AssignmentIcon sx={{ fontSize: 30 }} />,
+      color: "#2196F3"
+    },
+    {
+      title: "Muestras en Análisis",
+      value: sampleStats.totalSamples,
+      icon: <AssignmentIcon sx={{ fontSize: 30 }} />,
+      color: "#39A900"
+    },
+    {
+      title: "Muestras por Verificar",
+      value: sampleStats.pendingSamples,
+      icon: <TrendingUpIcon sx={{ fontSize: 30 }} />,
+      color: "#FF9800"
+    },
+    {
+      title: "Finalizadas",
+      value: sampleStats.verifiedSamples,
+      icon: <DoneAllIcon sx={{ fontSize: 30 }} />,
+      color: "#2E7D32"
+    }
+  ], [sampleStats]);
+
+  const clientTypeCardData = useMemo(() => [
+    {
+      title: "Empresas",
+      value: userStats.clientsByType.empresas,
+      icon: <PeopleIcon sx={{ fontSize: 28 }} />,
+      color: "#1976D2"
+    },
+    {
+      title: "Emprendedor",
+      value: userStats.clientsByType.emprendedor,
+      icon: <PersonIcon sx={{ fontSize: 28 }} />,
+      color: "#00B8D4"
+    },
+    {
+      title: "Persona natural",
+      value: userStats.clientsByType['persona natural'],
+      icon: <PersonIcon sx={{ fontSize: 28 }} />,
+      color: "#43A047"
+    },
+    {
+      title: "Institución educativa",
+      value: userStats.clientsByType['institucion educativa'],
+      icon: <PeopleIcon sx={{ fontSize: 28 }} />,
+      color: "#FF9800"
+    },
+    {
+      title: "Aprendiz/Instructor",
+      value: userStats.clientsByType['aprendiz/instructor Sena'],
+      icon: <PersonIcon sx={{ fontSize: 28 }} />,
+      color: "#8E24AA"
+    }
+  ], [userStats]);
+
   // Carga de datos de muestras (para estadísticas)
   useEffect(() => {
     const fetchSamplesStats = async () => {
@@ -332,17 +393,20 @@ const Dashboard = () => {
             { headers: { Authorization: `Bearer ${token}` } }
           );
 
-          console.log(`Respuesta de la API de muestras (página ${pageMuestras}):`, response.data);
-
           let muestras = [];
-          if (response.data && response.data.data && Array.isArray(response.data.data.data)) {
+          // Eliminar logs innecesarios y robustecer manejo de estructura inesperada
+          if (!(response.data && response.data.data && Array.isArray(response.data.data.data)) &&
+              !(response.data && Array.isArray(response.data.data)) &&
+              !(Array.isArray(response.data))) {
+            // Si la estructura es inesperada, simplemente dejar muestras vacío
+            muestras = [];
+          } else if (response.data && response.data.data && Array.isArray(response.data.data.data)) {
             muestras = response.data.data.data;
           } else if (response.data && Array.isArray(response.data.data)) {
             muestras = response.data.data;
           } else if (Array.isArray(response.data)) {
             muestras = response.data;
           } else {
-            console.warn("Estructura inesperada en la respuesta de muestras:", response.data);
             muestras = [];
           }
 
@@ -385,8 +449,6 @@ const Dashboard = () => {
             { headers: { Authorization: `Bearer ${token}` } }
           );
 
-          console.log(`Respuesta de la API de resultados (página ${page}):`, response.data);
-
           let samples = [];
           if (response.data && response.data.data && Array.isArray(response.data.data.data)) {
             samples = response.data.data.data;
@@ -395,7 +457,6 @@ const Dashboard = () => {
           } else if (Array.isArray(response.data)) {
             samples = response.data;
           } else {
-            console.warn("Estructura inesperada en la respuesta de resultados:", response.data);
             samples = [];
           }
 
@@ -405,8 +466,6 @@ const Dashboard = () => {
           hasMore = page < totalPages;
           page += 1;
         }
-
-        console.log("Todas las muestras procesadas (resultados):", allSamples);
 
         const totalSamples = allSamples.length;
         const pendingSamples = allSamples.filter(
@@ -421,16 +480,6 @@ const Dashboard = () => {
           .filter((s) => s.estado && s.estado.toLowerCase() === "en cotizacion")
           .sort((a, b) => new Date(b.fechaHoraMuestreo) - new Date(a.fechaHoraMuestreo))
           .slice(0, 10);
-
-        console.log("Estadísticas calculadas:", {
-          totalAllSamples,
-          totalSamples,
-          pendingSamples,
-          verifiedSamples,
-          quotationSamplesLength: quotationSamples.length,
-          microbiologicalSamples,
-          physicochemicalSamples,
-        });
 
         setSampleStats({
           totalAllSamples,
@@ -466,10 +515,15 @@ const Dashboard = () => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        console.log("Respuesta completa de la API de usuarios:", response.data);
-
         let users = [];
-        if (response.data && response.data.data && Array.isArray(response.data.data.data)) {
+        // Eliminar logs innecesarios de la carga de usuarios
+        if (!(response.data && response.data.data && Array.isArray(response.data.data.data)) &&
+            !(response.data && Array.isArray(response.data.data)) &&
+            !(response.data && Array.isArray(response.data.usuarios)) &&
+            !(Array.isArray(response.data))) {
+          // Si la estructura es inesperada, dejar users vacío
+          users = [];
+        } else if (response.data && response.data.data && Array.isArray(response.data.data.data)) {
           users = response.data.data.data;
         } else if (response.data && Array.isArray(response.data.data)) {
           users = response.data.data;
@@ -481,8 +535,6 @@ const Dashboard = () => {
           console.warn("Estructura inesperada en la respuesta de usuarios:", response.data);
           users = [];
         }
-
-        console.log("Usuarios procesados:", users);
 
         if (users.length === 0) {
           setUserError("No se encontraron usuarios en la respuesta de la API.");
@@ -505,7 +557,7 @@ const Dashboard = () => {
           }
           return user.rol || "Sin Rol";
         }))];
-        console.log("Roles únicos encontrados:", rolesUnicos);
+        // console.log("Roles únicos encontrados:", rolesUnicos);
 
         const clientCount = users.filter(user => {
           const roleValue = user.rol?.nombre || user.rol?.name || user.rol || "";
@@ -533,7 +585,7 @@ const Dashboard = () => {
           }
         });
 
-        console.log("Estadísticas de usuarios:", { totalUsers, clientCount, clientsByType });
+        // console.log("Estadísticas de usuarios:", { totalUsers, clientCount, clientsByType });
 
         setUserStats({ totalUsers, clientCount, clientsByType });
       } catch (err) {
@@ -683,7 +735,7 @@ const Dashboard = () => {
       const logoBase64 = await getBase64FromImportedImage(logoSena);
       doc.addImage(logoBase64, "PNG", 40, 10, 70, 70); // x, y, width, height (más arriba)
       // Línea decorativa de lado a lado debajo del logo
-      doc.setDrawColor(57, 169, 0); // Verde institucional
+      doc.setDrawColor(57,169,0); // Verde institucional
       doc.setLineWidth(2);
       doc.line(30, 85, pageWidth - 30, 85); // Línea de lado a lado
       y = 60; // Menos espacio después del logo
@@ -826,6 +878,25 @@ const Dashboard = () => {
     doc.save("informe-dashboard-sena-lab.pdf");
   };
 
+  // Limpiar logs de consola en producción
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      // eslint-disable-next-line no-console
+      console.log = () => {};
+      // eslint-disable-next-line no-console
+      console.warn = () => {};
+    }
+  }, []);
+
+  // Mejor feedback visual para errores
+  const renderError = useCallback(() => (
+    <Grid item xs={12}>
+      <Alert severity="error" sx={{ mb: 2, fontWeight: 'bold', fontSize: 16 }}>
+        {sampleError || userError}
+      </Alert>
+    </Grid>
+  ), [sampleError, userError]);
+
   if (loadingSamples || loadingUsers) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
@@ -854,52 +925,17 @@ const Dashboard = () => {
           PANEL DE CONTROL
         </Typography>
 
-        {(sampleError || userError) && (
-          <Grid item xs={12}>
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {sampleError || userError}
-            </Alert>
-          </Grid>
-        )}
+        {(sampleError || userError) && renderError()}
 
         <Grid container spacing={2} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={3}>
-            <StatCard
-              title="Muestras Recibidas"
-              value={sampleStats.totalAllSamples}
-              icon={<AssignmentIcon sx={{ fontSize: 30 }} />}
-              color="#2196F3"
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <StatCard
-              title="Muestras en Análisis"
-              value={sampleStats.totalSamples}
-              icon={<AssignmentIcon sx={{ fontSize: 30 }} />}
-              color="#39A900"
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <StatCard
-              title="Muestras por Verificar"
-              value={sampleStats.pendingSamples}
-              icon={<TrendingUpIcon sx={{ fontSize: 30 }} />}
-              color="#FF9800"
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <StatCard
-              title="Finalizadas"
-              value={sampleStats.verifiedSamples}
-              icon={<DoneAllIcon sx={{ fontSize: 30 }} />}
-              color="#2E7D32" // Color ajustado para que coincida con el gráfico
-            />
-          </Grid>
+          {statCardData.map((card, idx) => (
+            <Grid item xs={12} sm={3} key={card.title}>
+              <StatCard {...card} />
+            </Grid>
+          ))}
         </Grid>
 
         <SampleCharts sampleStats={sampleStats} waterTypeStats={waterTypeStats} userTypeStats={userStats.clientsByType} />
-
-       
 
         <Paper
           elevation={3}
@@ -943,46 +979,11 @@ const Dashboard = () => {
                 Clientes por tipo
               </Typography>
               <Grid container spacing={2} justifyContent="center">
-                <Grid item xs={12} sm={6} md={2.4}>
-                  <StatCard
-                    title="Empresas"
-                    value={userStats.clientsByType.empresas}
-                    icon={<PeopleIcon sx={{ fontSize: 28 }} />}
-                    color="#1976D2"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                  <StatCard
-                    title="Emprendedor"
-                    value={userStats.clientsByType.emprendedor}
-                    icon={<PersonIcon sx={{ fontSize: 28 }} />}
-                    color="#00B8D4"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                  <StatCard
-                    title="Persona natural"
-                    value={userStats.clientsByType['persona natural']}
-                    icon={<PersonIcon sx={{ fontSize: 28 }} />}
-                    color="#43A047"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                  <StatCard
-                    title="Institución educativa"
-                    value={userStats.clientsByType['institucion educativa']}
-                    icon={<PeopleIcon sx={{ fontSize: 28 }} />}
-                    color="#FF9800"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={2.4}>
-                  <StatCard
-                    title="Aprendiz/Instructor"
-                    value={userStats.clientsByType['aprendiz/instructor Sena']}
-                    icon={<PersonIcon sx={{ fontSize: 28 }} />}
-                    color="#8E24AA"
-                  />
-                </Grid>
+                {clientTypeCardData.map((card, idx) => (
+                  <Grid item xs={12} sm={6} md={2.4} key={card.title}>
+                    <StatCard {...card} />
+                  </Grid>
+                ))}
               </Grid>
             </Grid>
           </Grid>

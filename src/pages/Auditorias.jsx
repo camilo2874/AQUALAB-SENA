@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Paper,
   Typography,
@@ -120,15 +120,24 @@ const ExcelGenerator = () => {
     total: 0,
     totalPages: 1,
   });
+  const searchDebounceRef = useRef();
 
-  useEffect(() => {
-    loadInitialData();
-    fetchAnalisisDisponibles();
-  }, []);  const fetchAnalisisDisponibles = async () => {
+  // Memoización de analisisDisponibles para evitar renders innecesarios
+  const memoAnalisisDisponibles = useMemo(() => analisisDisponibles, [analisisDisponibles]);
+
+  // Memoización de estados válidos
+  const memoEstadosValidos = useMemo(() => ESTADOS_VALIDOS, []);
+
+  // Memoización de datos de paginación
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pagination.limit;
+    return filteredData.slice(start, start + pagination.limit);
+  }, [filteredData, currentPage, pagination.limit]);
+
+  // Limpieza de logs innecesarios y robustez en fetchAnalisisDisponibles
+  const fetchAnalisisDisponibles = useCallback(async () => {
     try {
       const data = await excelGenerator.obtenerDatosAuditoria();
-      console.log('Raw API response:', data);
-      
       if (data.success === true && Array.isArray(data.data)) {
         setAnalisisDisponibles(data.data);
       } else if (Array.isArray(data)) {
@@ -140,17 +149,14 @@ const ExcelGenerator = () => {
       } else if (data && Array.isArray(data.data?.parametros)) {
         setAnalisisDisponibles(data.data.parametros);
       } else {
-        // Extract parameters from muestras if they exist
         const muestras = data.data?.muestras || data.muestras || [];
         const parametrosSet = new Set();
-        
         muestras.forEach(muestra => {
           const parametros = [
             ...(muestra.parametros || []),
             ...(muestra.analisisSeleccionados || []),
             ...(muestra.analisis || [])
           ];
-          
           parametros.forEach(param => {
             if (typeof param === 'string') {
               parametrosSet.add(param);
@@ -161,37 +167,29 @@ const ExcelGenerator = () => {
             }
           });
         });
-        
         setAnalisisDisponibles(Array.from(parametrosSet).map(nombre => ({ nombre })));
-        console.log('Parámetros extraídos de muestras:', Array.from(parametrosSet));
       }
     } catch (error) {
-      console.error('Error fetching análisis:', error);
       setAnalisisDisponibles([]);
     }
-  };
-  const loadInitialData = async (page = 1, limit = 10) => {
+  }, []);
+
+  // Limpieza de logs innecesarios y robustez en loadInitialData
+  const loadInitialData = useCallback(async (page = 1, limit = 10) => {
     setInitialLoading(true);
     setError(null);
     try {
       const response = await excelGenerator.obtenerDatosAuditoria();
-      console.log('Datos recibidos:', response);
-      
       let muestrasData = [];
       if (response && response.data) {
         muestrasData = response.data.muestras || response.data || [];
       }
-      
-      console.log('Muestras procesadas:', muestrasData);
-      
       setAuditData({
-        muestras: muestrasData.slice((page - 1) * limit, page * limit), // Mostrar solo 10 elementos por página
+        muestras: muestrasData,
         parametros: response.data?.parametros || [],
         historial: response.data?.historial || []
       });
       setFilteredData(muestrasData);
-
-      // Actualizar paginación
       setPagination({
         page,
         limit,
@@ -199,31 +197,32 @@ const ExcelGenerator = () => {
         totalPages: Math.ceil(muestrasData.length / limit),
       });
     } catch (err) {
-      console.error('Error loading data:', err);
       setError('Error al cargar los datos iniciales');
       setAuditData({ muestras: [], parametros: [], historial: [] });
       setFilteredData([]);
     } finally {
       setInitialLoading(false);
     }
-  };
-  const handleParameterChange = (event) => {
-    const parameter = event.target.value;
-    setSelectedParameter(parameter);
-    filterData(parameter, filterState);
-  };
-  const handleSearchChange = (event) => {
-    setSearchTerm(event.target.value);
-    filterData(event.target.value, filterState);
-  };
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setFilterState('');
-    filterData('', '');
-  };
-  const filterData = (searchTerm, estado) => {
-    let filtered = auditData.muestras || [];
+  }, []);
 
+  useEffect(() => {
+    loadInitialData();
+    fetchAnalisisDisponibles();
+  }, [loadInitialData, fetchAnalisisDisponibles]);
+
+  // Debounce en búsqueda
+  const handleSearchChange = useCallback((event) => {
+    const value = event.target.value;
+    setSearchTerm(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      filterData(value, filterState);
+    }, 350);
+  }, [filterState]);
+
+  // Memoización de filterData
+  const filterData = useCallback((searchTerm, estado) => {
+    let filtered = auditData.muestras || [];
     if (searchTerm) {
       const normalizedSearchTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(muestra => {
@@ -232,21 +231,33 @@ const ExcelGenerator = () => {
         return idMatch || clienteMatch;
       });
     }
-
     if (estado) {
       filtered = filtered.filter(muestra => muestra.estado === estado);
     }
-
     setFilteredData(filtered);
-  };
+  }, [auditData.muestras]);
 
-  useEffect(() => {
-    filterData(selectedParameter, filterState);
-  }, [selectedParameter, filterState, auditData]);
+  // Memoización de handlers
+  const handleParameterChange = useCallback((event) => {
+    const parameter = event.target.value;
+    setSelectedParameter(parameter);
+    filterData(parameter, filterState);
+  }, [filterData, filterState]);
 
-  const handleTabChange = (event, newValue) => {
+  const handleClearFilters = useCallback(() => {
+    setSearchTerm('');
+    setFilterState('');
+    filterData('', '');
+  }, [filterData]);
+
+  const handleTabChange = useCallback((event, newValue) => {
     setSelectedTab(newValue);
-  };
+  }, []);
+
+  const handlePageChange = useCallback((event, value) => {
+    setCurrentPage(value);
+  }, []);
+
   const handleDownloadExcel = async (periodo = 'general') => {
     setLoading(true);
     setError(null);
@@ -415,11 +426,6 @@ const ExcelGenerator = () => {
     }
   }, [selectedTab, selectedParameter]);
 
-  const handlePageChange = (event, value) => {
-    setCurrentPage(value);
-    loadInitialData(value, pagination.limit); // Asegurar que se respete el límite de 10 elementos por página
-  };
-
   // Estilos de tabla
   const tableStyles = {
     width: '100%',
@@ -471,7 +477,7 @@ const ExcelGenerator = () => {
                         sx={{ bgcolor: 'white', borderRadius: 2 }}
                       >
                         <MenuItem value="">Todos</MenuItem>
-                        {analisisDisponibles && analisisDisponibles.map((param) => (
+                        {memoAnalisisDisponibles && memoAnalisisDisponibles.map((param) => (
                           <MenuItem key={param.id || param.nombre} value={typeof param === 'string' ? param : param.nombre}>
                             {typeof param === 'string' ? param : param.nombre}
                           </MenuItem>
@@ -489,7 +495,7 @@ const ExcelGenerator = () => {
                         sx={{ bgcolor: 'white', borderRadius: 2 }}
                       >
                         <MenuItem value="">Todos</MenuItem>
-                        {ESTADOS_VALIDOS.map((estado) => (
+                        {memoEstadosValidos.map((estado) => (
                           <MenuItem key={estado} value={estado}>{estado}</MenuItem>
                         ))}
                       </Select>
@@ -507,6 +513,7 @@ const ExcelGenerator = () => {
                         height: '40px',
                         '&:hover': { bgcolor: '#2d8600', transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' },
                       }}
+                      disabled={!searchTerm && !filterState && !selectedParameter}
                     >
                       Limpiar Filtros
                     </Button>
@@ -533,7 +540,7 @@ const ExcelGenerator = () => {
               <TableContainer component={Paper}>
                 <Table sx={tableStyles}>
                   <TableHead>
-                    <TableRow sx={{ backgroundColor: '#39A900' }}> {/* Fondo verde */}
+                    <TableRow sx={{ backgroundColor: '#39A900' }}>
                       <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>ID Muestra</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Cliente</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Fecha Ingreso</TableCell>
@@ -542,37 +549,36 @@ const ExcelGenerator = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(filteredData || []).length === 0 ? (
+                    {/* Evitar nodos de texto/espacios entre <TableRow> para prevenir errores de hidratación */}
+                    {paginatedData.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ color: '#888' }}>
                           No hay muestras para mostrar
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      (filteredData || []).map((muestra) => (
-                        <TableRow key={muestra.id} sx={rowStyles}>
-                          <TableCell>{muestra.id}</TableCell>
-                          <TableCell>{muestra.cliente}</TableCell>
-                          <TableCell>{muestra.fechaIngreso}</TableCell>
-                          <TableCell>
+                    ) : paginatedData.map((muestra) => (
+                      <TableRow key={muestra.id} sx={rowStyles}>
+                        <TableCell>{muestra.id}</TableCell>
+                        <TableCell>{muestra.cliente}</TableCell>
+                        <TableCell>{muestra.fechaIngreso}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={muestra.estado}
+                            {...getEstadoChipProps(muestra.estado)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {(muestra.parametros || []).map((param) => (
                             <Chip
-                              label={muestra.estado}
-                              {...getEstadoChipProps(muestra.estado)}
+                              key={param}
+                              label={param}
+                              size="small"
+                              sx={{ mr: 1 }}
                             />
-                          </TableCell>
-                          <TableCell>
-                            {(muestra.parametros || []).map((param) => (
-                              <Chip
-                                key={param}
-                                label={param}
-                                size="small"
-                                sx={{ mr: 1 }}
-                              />
-                            ))}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                          ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>

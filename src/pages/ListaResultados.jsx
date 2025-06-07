@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -73,8 +73,8 @@ const ListaResultados = memo(() => {
   const [success, setSuccess] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterEstado, setFilterEstado] = useState('todos'); // Estado para el filtro
-  const [filterDate, setFilterDate] = useState(null); // Nuevo estado para el filtro de fecha
+  const [filterEstado, setFilterEstado] = useState('todos');
+  const [filterDate, setFilterDate] = useState('');
   const [selectedResult, setSelectedResult] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [observacionesVerificacion, setObservacionesVerificacion] = useState('');
@@ -87,40 +87,60 @@ const ListaResultados = memo(() => {
     totalPages: 1,
   });
 
-  useEffect(() => {
-    cargarResultados();
-  }, [filterEstado]);
+  const debounceTimeout = useRef();
 
-  const cargarResultados = async (page = 1, limit = 10) => {
+  // Memoizar handlers
+  const handleSearchChange = useCallback((event) => {
+    setSearchTerm(event.target.value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleFilterEstadoChange = useCallback((event) => {
+    setFilterEstado(event.target.value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleDateChange = useCallback((e) => {
+    setFilterDate(e.target.value);
+    setCurrentPage(1);
+  }, []);
+
+  const handlePageChange = useCallback((event, value) => {
+    setCurrentPage(value);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setFilterEstado('todos');
+    setFilterDate('');
+    setSearchTerm('');
+    setCurrentPage(1);
+  }, []);
+
+  // Cargar resultados (memoizado)
+  const cargarResultados = useCallback(async (page = 1, limit = 10, estado = filterEstado, search = searchTerm, date = filterDate) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
-
       if (!token) {
         setError('No tienes autorización. Inicia sesión.');
         navigate('/login');
         return;
       }
-
       const userRole = userData.rol?.toLowerCase();
       if (!userRole || (userRole !== 'laboratorista' && userRole !== 'administrador')) {
         setError('No tienes autorización para ver esta página.');
         navigate('/login');
         return;
       }
-
       const params = {
         page,
         limit,
-        ...(searchTerm.trim() && { search: searchTerm.trim() }),
-        ...(filterEstado !== 'todos' && { verificado: filterEstado === 'finalizada' ? 'true' : 'false' }), // Usar 'verificado' para filtrar
-        ...(filterDate && { fecha: filterDate }), // Agregar filtro de fecha si está presente
+        ...(search.trim() && { search: search.trim() }),
+        ...(estado !== 'todos' && { verificado: estado === 'finalizada' ? 'true' : 'false' }),
+        ...(date && { fecha: date }),
       };
-
       const queryParams = new URLSearchParams(params).toString();
-      console.log("Parámetros enviados al backend:", queryParams);
-
       const response = await axios.get(
         `${API_URLS.RESULTADOS}/resultados?${queryParams}`,
         {
@@ -130,15 +150,11 @@ const ListaResultados = memo(() => {
           }
         }
       );
-
-      console.log("Respuesta del backend (resultados):", response.data);
-
       if (response.data && response.data.data && response.data.data.data && response.data.data.pagination) {
         let filteredResultados = response.data.data.data;
-        // Client-side filtering as a fallback if backend doesn't filter
-        if (filterEstado !== 'todos') {
+        if (estado !== 'todos') {
           filteredResultados = filteredResultados.filter(resultado =>
-            filterEstado === 'finalizada' ? resultado.verificado : !resultado.verificado
+            estado === 'finalizada' ? resultado.verificado : !resultado.verificado
           );
         }
         setResultados(filteredResultados);
@@ -149,19 +165,10 @@ const ListaResultados = memo(() => {
           totalPages: response.data.data.pagination.totalPages,
         });
       } else {
-        console.warn("Estructura inesperada en la respuesta de resultados:", response.data);
         setResultados([]);
-        setPagination({
-          page: 1,
-          limit,
-          total: 0,
-          totalPages: 1,
-        });
+        setPagination({ page: 1, limit, total: 0, totalPages: 1 });
       }
     } catch (err) {
-      console.error('Error al cargar resultados:', err);
-      console.error('Detalles del error:', err.response?.data || err.message);
-
       if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
         localStorage.removeItem('token');
@@ -172,25 +179,18 @@ const ListaResultados = memo(() => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterEstado, searchTerm, filterDate, navigate]);
 
-  const handleSearchChange = (event) => {
-    setSearchTerm(event.target.value);
-    setCurrentPage(1);
-    cargarResultados(1, pagination.limit);
-  };
+  // Efecto único para cargar resultados al cambiar cualquier filtro, búsqueda o página
+  useEffect(() => {
+    clearTimeout(debounceTimeout.current);
+    debounceTimeout.current = setTimeout(() => {
+      cargarResultados(currentPage, pagination.limit, filterEstado, searchTerm, filterDate);
+    }, 400);
+    return () => clearTimeout(debounceTimeout.current);
+  }, [currentPage, filterEstado, filterDate, searchTerm]);
 
-  const handleFilterEstadoChange = (event) => {
-    setFilterEstado(event.target.value);
-    setCurrentPage(1);
-    cargarResultados(1, pagination.limit);
-  };
-
-  const handlePageChange = (event, value) => {
-    setCurrentPage(value);
-    cargarResultados(value, pagination.limit);
-  };
-
+  // Handlers memoizados
   const handleFinalizarMuestra = async () => {
     try {
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -395,7 +395,7 @@ const ListaResultados = memo(() => {
               label="Filtrar por Fecha"
               fullWidth
               value={filterDate || ''}
-              onChange={e => { setFilterDate(e.target.value); setCurrentPage(1); cargarResultados(1, pagination.limit); }}
+              onChange={handleDateChange}
               InputLabelProps={{ shrink: true }}
               sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}
             />
@@ -411,7 +411,7 @@ const ListaResultados = memo(() => {
             />
           </Grid>
           <Grid item xs={12} sm={2}>
-            <Button variant="outlined" fullWidth onClick={() => { setFilterEstado('todos'); setFilterDate(''); setSearchTerm(''); cargarResultados(1, pagination.limit); }} sx={{ borderColor: '#39A900', color: '#39A900', fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}>
+            <Button variant="outlined" fullWidth onClick={handleClearFilters} sx={{ borderColor: '#39A900', color: '#39A900', fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}>
               Limpiar Filtros
             </Button>
           </Grid>
@@ -436,60 +436,68 @@ const ListaResultados = memo(() => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {resultados.map((resultado) => (
-                  <TableRow 
-                    key={resultado._id}
-                    sx={rowStyles}
-                  >
-                    <TableCell>{resultado.idMuestra}</TableCell>
-                    <TableCell>{resultado.cliente?.nombre || 'Sin nombre'}</TableCell>
-                    <TableCell>
-                      {resultado.updatedAt?.fecha && resultado.updatedAt?.hora 
-                        ? `${resultado.updatedAt.fecha} ${resultado.updatedAt.hora}`
-                        : formatearFecha(resultado.updatedAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={resultado.verificado ? "Finalizada" : "En análisis"}
-                        color={resultado.verificado ? "success" : "primary"}
-                        sx={{
-                          bgcolor: resultado.verificado ? '#39A900' : '#1976D2',
-                          color: 'white',
-                          fontWeight: 'bold',
-                          fontSize: 15,
-                          px: 2,
-                          boxShadow: resultado.verificado ? '0 2px 8px 0 rgba(57,169,0,0.10)' : '0 2px 8px 0 rgba(25,118,210,0.10)'
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
-                        <ActionButton
-                          tooltip="Ver Detalles"
-                          onClick={() => handleVerDetalles(resultado)}
-                          IconComponent={VisibilityIcon}
-                          color="#39A900"
-                        />
-                        {resultado.verificado && (
-                          <>
-                            <ActionButton
-                              tooltip="Ver PDF Resultados"
-                              onClick={() => handleViewResultsPDF(resultado)}
-                              IconComponent={PictureAsPdfIcon}
-                              color="#39A900"
-                            />
-                            <ActionButton
-                              tooltip="Descargar PDF Resultados"
-                              onClick={() => handleDownloadResultsPDF(resultado)}
-                              IconComponent={GetAppIcon}
-                              color="#39A900"
-                            />
-                          </>
-                        )}
-                      </Box>
+                {resultados.length === 0 && !loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center">
+                      No hay resultados para los filtros/búsqueda seleccionados.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  resultados.map((resultado) => (
+                    <TableRow 
+                      key={resultado._id}
+                      sx={rowStyles}
+                    >
+                      <TableCell>{resultado.idMuestra}</TableCell>
+                      <TableCell>{resultado.cliente?.nombre || 'Sin nombre'}</TableCell>
+                      <TableCell>
+                        {resultado.updatedAt?.fecha && resultado.updatedAt?.hora 
+                          ? `${resultado.updatedAt.fecha} ${resultado.updatedAt.hora}`
+                          : formatearFecha(resultado.updatedAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={resultado.verificado ? "Finalizada" : "En análisis"}
+                          color={resultado.verificado ? "success" : "primary"}
+                          sx={{
+                            bgcolor: resultado.verificado ? '#39A900' : '#1976D2',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            fontSize: 15,
+                            px: 2,
+                            boxShadow: resultado.verificado ? '0 2px 8px 0 rgba(57,169,0,0.10)' : '0 2px 8px 0 rgba(25,118,210,0.10)'
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
+                          <ActionButton
+                            tooltip="Ver Detalles"
+                            onClick={() => handleVerDetalles(resultado)}
+                            IconComponent={VisibilityIcon}
+                            color="#39A900"
+                          />
+                          {resultado.verificado && (
+                            <>
+                              <ActionButton
+                                tooltip="Ver PDF Resultados"
+                                onClick={() => handleViewResultsPDF(resultado)}
+                                IconComponent={PictureAsPdfIcon}
+                                color="#39A900"
+                              />
+                              <ActionButton
+                                tooltip="Descargar PDF Resultados"
+                                onClick={() => handleDownloadResultsPDF(resultado)}
+                                IconComponent={GetAppIcon}
+                                color="#39A900"
+                              />
+                            </>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -498,7 +506,7 @@ const ListaResultados = memo(() => {
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
               <Pagination
                 count={pagination.totalPages}
-                page={pagination.page}
+                page={currentPage}
                 onChange={handlePageChange}
                 color="primary"
                 sx={{

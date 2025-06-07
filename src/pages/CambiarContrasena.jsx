@@ -11,7 +11,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import AqualabLogo from "../assets/Aqualab2.gif"; // Importa el logo
+import AqualabLogo from "../assets/Aqualab.png"; // Importa el logo
 
 const CambiarContrasena = () => {
   const [searchParams] = useSearchParams();

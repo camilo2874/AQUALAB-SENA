@@ -15,7 +15,7 @@ import { motion } from "framer-motion";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import AuthContext from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import AqualabLogo from "../assets/Aqualab2.gif";
+import AqualabLogo from "../assets/Aqualab.png";
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ email: "", password: "" });

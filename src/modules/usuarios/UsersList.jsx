@@ -1,5 +1,5 @@
 // src/components/UsersList.jsx
-import React, { useState, useEffect, useContext, memo } from "react";
+import React, { useState, useEffect, useContext, memo, useCallback, useMemo, useRef } from "react";
 import axios from "axios";
 import {
   Table,
@@ -27,8 +27,19 @@ import {
   Snackbar,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
+import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../../context/AuthContext";
+
+// Debounce para búsqueda eficiente
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 
 const UsersList = memo(() => {
   const { tipoUsuario } = useContext(AuthContext);
@@ -49,6 +60,8 @@ const UsersList = memo(() => {
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
 
   const navigate = useNavigate();
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const firstNoResultRef = useRef(null);
 
   // Función auxiliar para obtener el nombre del rol
   const getRoleName = (user) => {
@@ -85,6 +98,30 @@ const UsersList = memo(() => {
     fetchUsers();
   }, [navigate]);
 
+  // Memoizar handlers
+  const handleSearchChange = useCallback((e) => setSearch(e.target.value), []);
+  const handleFilterChange = useCallback((e) => setFilterType(e.target.value), []);
+  const handleEditClick = useCallback((user) => {
+    setEditUser(user);
+    setOpenEdit(true);
+  }, []);
+  const handleCloseEdit = useCallback(() => {
+    setOpenEdit(false);
+    setEditUser(null);
+  }, []);
+  const handleSnackbarClose = useCallback((event, reason) => {
+    if (reason === "clickaway") return;
+    setSnackbarOpen(false);
+  }, []);
+  const handleRowClick = useCallback((user) => {
+    setDetailUser(user);
+    setOpenDetail(true);
+  }, []);
+  const handleCloseDetail = useCallback(() => {
+    setOpenDetail(false);
+    setDetailUser(null);
+  }, []);
+
   useEffect(() => {
     try {
       let visibleUsers = Array.isArray(users) ? [...users] : [];
@@ -111,37 +148,23 @@ const UsersList = memo(() => {
         );
       }
 
-      if (search.trim() !== "") {
+      if (debouncedSearch.trim() !== "") {
         visibleUsers = visibleUsers.filter(
           (user) =>
-            user.nombre?.toLowerCase().includes(search.toLowerCase()) ||
-            (user.documento && user.documento.toString().includes(search))
+            user.nombre?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            (user.documento && user.documento.toString().includes(debouncedSearch))
         );
       }
 
       setFilteredUsers(visibleUsers);
       setPage(0);
+      if (visibleUsers.length === 0 && firstNoResultRef.current) {
+        firstNoResultRef.current.focus();
+      }
     } catch (err) {
-      console.error("Error en el filtrado:", err);
       setFilteredUsers([]);
     }
-  }, [search, filterType, users, tipoUsuario]);
-
-  const handleSearchChange = (e) => setSearch(e.target.value);
-  const handleFilterChange = (e) => setFilterType(e.target.value);
-  const handleEditClick = (user) => {
-    setEditUser(user);
-    setOpenEdit(true);
-  };
-  const handleCloseEdit = () => {
-    setOpenEdit(false);
-    setEditUser(null);
-  };
-
-  const handleSnackbarClose = (event, reason) => {
-    if (reason === "clickaway") return;
-    setSnackbarOpen(false);
-  };
+  }, [debouncedSearch, filterType, users, tipoUsuario]);
 
   const handleEditSubmit = async () => {
     const token = localStorage.getItem("token");
@@ -206,16 +229,6 @@ const UsersList = memo(() => {
     }
   };
 
-  const handleRowClick = (user) => {
-    setDetailUser(user);
-    setOpenDetail(true);
-  };
-
-  const handleCloseDetail = () => {
-    setOpenDetail(false);
-    setDetailUser(null);
-  };
-
   if (loading) {
     return <CircularProgress style={{ display: "block", margin: "20px auto" }} />;
   }
@@ -275,11 +288,18 @@ const UsersList = memo(() => {
             onChange={handleSearchChange}
             InputProps={{
               startAdornment: (
-                <EditIcon sx={{ color: primaryColor, mr: 1 }} />
+                <SearchIcon sx={{ color: primaryColor, mr: 1 }} />
               ),
             }}
+            inputProps={{ 'aria-label': 'Buscar usuario' }}
           />
-          <Button variant="outlined" fullWidth onClick={() => { setFilterType('todos'); setSearch(''); }} sx={{ borderColor: primaryColor, color: primaryColor, fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={() => { setFilterType('todos'); setSearch(''); }}
+            sx={{ borderColor: primaryColor, color: primaryColor, fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}
+            disabled={filterType === 'todos' && !search}
+          >
             Limpiar Filtros
           </Button>
         </Box>
@@ -303,80 +323,90 @@ const UsersList = memo(() => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredUsers
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((user, idx) => (
-                <TableRow
-                  key={user._id}
-                  onClick={() => handleRowClick(user)}
-                  sx={{
-                    background: idx % 2 === 0 ? secondaryColor : "#fff",
-                    transition: "box-shadow 0.2s, transform 0.2s",
-                    cursor: "pointer",
-                    '&:hover': {
-                      boxShadow: `0 2px 12px 0 ${primaryColor}33`,
-                      transform: "scale(1.01)",
-                    },
-                  }}
-                >
-                  <TableCell>{user.nombre}</TableCell>
-                  <TableCell>{user.documento}</TableCell>
-                  <TableCell>{user.telefono}</TableCell>
-                  <TableCell>{user.direccion}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{getRoleName(user)}</TableCell>
-                  <TableCell>
-                    <Typography fontWeight={600} color={user.activo ? primaryColor : "error"}>
-                      {user.activo ? "Sí" : "No"}
-                    </Typography>
-                  </TableCell>
-                  {tipoUsuario !== "laboratorista" && (
+            {filteredUsers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={tipoUsuario !== "laboratorista" ? 8 : 7} align="center">
+                  <Typography ref={firstNoResultRef} tabIndex={-1} sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 18 }}>
+                    No hay usuarios que coincidan con la búsqueda o filtros.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredUsers
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((user, idx) => (
+                  <TableRow
+                    key={user._id}
+                    onClick={() => handleRowClick(user)}
+                    sx={{
+                      background: idx % 2 === 0 ? secondaryColor : "#fff",
+                      transition: "box-shadow 0.2s, transform 0.2s",
+                      cursor: "pointer",
+                      '&:hover': {
+                        boxShadow: `0 2px 12px 0 ${primaryColor}33`,
+                        transform: "scale(1.01)",
+                      },
+                    }}
+                  >
+                    <TableCell>{user.nombre}</TableCell>
+                    <TableCell>{user.documento}</TableCell>
+                    <TableCell>{user.telefono}</TableCell>
+                    <TableCell>{user.direccion}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getRoleName(user)}</TableCell>
                     <TableCell>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        {tipoUsuario === "super_admin" && (
-                          <>
-                            <Switch
-                              checked={user.activo}
-                              onChange={() => handleToggleActivo(user._id, !user.activo)}
-                              color="success"
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{
-                                '& .MuiSwitch-thumb': { backgroundColor: user.activo ? primaryColor : "#ccc" },
-                              }}
-                            />
-                            {getRoleName(user).toLowerCase() === "administrador" && (
+                      <Typography fontWeight={600} color={user.activo ? primaryColor : "error"}>
+                        {user.activo ? "Sí" : "No"}
+                      </Typography>
+                    </TableCell>
+                    {tipoUsuario !== "laboratorista" && (
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {tipoUsuario === "super_admin" && (
+                            <>
+                              <Switch
+                                checked={user.activo}
+                                onChange={() => handleToggleActivo(user._id, !user.activo)}
+                                color="success"
+                                onClick={(e) => e.stopPropagation()}
+                                sx={{
+                                  '& .MuiSwitch-thumb': { backgroundColor: user.activo ? primaryColor : "#ccc" },
+                                }}
+                              />
+                              {getRoleName(user).toLowerCase() === "administrador" && (
+                                <IconButton
+                                  color="primary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditClick(user);
+                                  }}
+                                  sx={{ background: "#e3f2fd", borderRadius: 2 }}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              )}
+                            </>
+                          )}
+                          {tipoUsuario === "administrador" &&
+                            getRoleName(user).toLowerCase() !== "administrador" &&
+                            getRoleName(user).toLowerCase() !== "super_admin" && (
                               <IconButton
                                 color="primary"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEditClick(user);
                                 }}
-                                sx={{ background: "#e3f2fd", borderRadius: 2 }}
+                                sx={{ background: "#e8f5e9", borderRadius: 2 }}
                               >
                                 <EditIcon />
                               </IconButton>
                             )}
-                          </>
-                        )}
-                        {tipoUsuario === "administrador" &&
-                          getRoleName(user).toLowerCase() !== "administrador" &&
-                          getRoleName(user).toLowerCase() !== "super_admin" && (
-                            <IconButton
-                              color="primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditClick(user);
-                              }}
-                              sx={{ background: "#e8f5e9", borderRadius: 2 }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          )}
-                      </Box>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
+                        </Box>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -457,7 +487,7 @@ const UsersList = memo(() => {
 
       {/* Snackbar de notificaciones */}
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }}>
+        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: "100%", borderRadius: 2, fontWeight: 600 }} role="alert">
           {snackbarMessage}
         </Alert>
       </Snackbar>

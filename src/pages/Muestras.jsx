@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, memo } from "react";
+import React, { useState, useEffect, useContext, memo, useMemo, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { PDFService } from '../services/pdfGenerator';
@@ -779,7 +779,6 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
 /* =================== COMPONENTE PRINCIPAL: Muestras =================== */
 const Muestras = memo(() => {
   const [muestras, setMuestras] = useState([]);
-  const [filteredMuestras, setFilteredMuestras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("todos");
@@ -821,7 +820,7 @@ const Muestras = memo(() => {
   };
 
   // Ajustar la función fetchMuestras para manejar correctamente el formato de fecha
-  const fetchMuestras = async (
+  const fetchMuestras = useCallback(async (
     page = 1,
     limit = 10,
     sortBy = "createdAt",
@@ -829,25 +828,21 @@ const Muestras = memo(() => {
     tipo = filterType,
     searchQuery = search,
     dateFilter = filterDate,
-    applyFiltersToAllPages = true // Nuevo parámetro para aplicar filtros a todo el conjunto de datos
+    applyFiltersToAllPages = true
   ) => {
     try {
       setLoading(true);
-
-      // Convertir la fecha al formato dd/MM/yyyy si es necesario
       const formattedDate = dateFilter ? dateFilter.split("-").reverse().join("/") : "";
-
       const response = await muestrasService.obtenerMuestras({
         page,
         limit,
         sortBy,
         sortOrder,
-        tipo: tipo !== "todos" ? tipo : undefined, // Enviar solo si no es "todos"
-        search: searchQuery.trim() || undefined, // Enviar solo si no está vacío
-        date: formattedDate || undefined, // Enviar solo si no está vacío
-        applyFiltersToAllPages // Enviar al backend para aplicar filtros globalmente
+        tipo: tipo !== "todos" ? tipo : undefined,
+        search: searchQuery.trim() || undefined,
+        date: formattedDate || undefined,
+        applyFiltersToAllPages
       });
-
       if (response.success && response.data) {
         setMuestras(response.data.items);
         setPagination({
@@ -860,7 +855,6 @@ const Muestras = memo(() => {
         throw new Error("No se pudieron obtener las muestras");
       }
     } catch (error) {
-      console.error("Error fetching muestras:", error);
       setSnackbarMessage(
         "Error al cargar las muestras: " + (error.message || "Error desconocido")
       );
@@ -870,73 +864,62 @@ const Muestras = memo(() => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Actualizar la lógica de filtros locales para manejar correctamente el formato de fecha
-  const applyFilters = () => {
-    let filtered = [...muestras];
-    if (search.trim() !== "") {
-      filtered = filtered.filter((muestra) =>
-        muestra.id_muestra?.toLowerCase().includes(search.toLowerCase()) ||
-        muestra.cliente?.nombre?.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-    if (filterDate !== "") {
-      const formattedDate = filterDate.split("-").reverse().join("/");
-      filtered = filtered.filter((muestra) => {
-        const fechaCreacion = muestra.creadoPor?.fechaCreacion?.fecha;
-        return fechaCreacion === formattedDate;
-      });
-    }
-    if (filterType !== "todos") {
-      filtered = filtered.filter((muestra) => muestra.tipoAnalisis === filterType);
-    }
-    setFilteredMuestras(filtered);
-  };
+  }, [filterType, search, filterDate]);
 
   useEffect(() => {
     fetchMuestras(pagination.page, pagination.limit, "createdAt", "desc", filterType, search, filterDate);
-  }, [filterType, search, filterDate, pagination.page]);
+  }, [fetchMuestras, pagination.page, filterType, search, filterDate]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [muestras]);
-
-  const handlePageChange = (event, value) => {
-    fetchMuestras(value, pagination.limit, "createdAt", "desc", filterType);
-  };
-
-  const handleFilterChange = (e) => {
-    const newType = e.target.value;
-    setFilterType(newType);
-    fetchMuestras(1, pagination.limit, "createdAt", "desc", newType, search, filterDate);
-  };
-
-  const handleSearchChange = (e) => {
-    const query = e.target.value;
-    setSearch(query);
-    fetchMuestras(1, pagination.limit, "createdAt", "desc", filterType, query, filterDate);
-  };
-
-  const handleDateChange = (e) => {
-    const date = e.target.value;
-    setFilterDate(date);
-    fetchMuestras(1, pagination.limit, "createdAt", "desc", filterType, search, date);
-  };
-
-  const handleClearFilters = () => {
+  const handleViewDetails = useCallback((muestra) => setSelectedMuestra(muestra), []);
+  const handleEditMuestra = useCallback((muestra) => setEditingMuestra(muestra), []);
+  const handleClearFilters = useCallback(() => {
     setFilterType("todos");
     setFilterDate("");
     setSearch("");
     fetchMuestras(1, pagination.limit, "createdAt", "desc", "todos", "", "");
-  };
+  }, [fetchMuestras, pagination.limit]);
 
-  // Funciones para manejar PDFs
-  const handleViewPDF = async (muestra) => {
+  const handleSaveEdit = async () => {
     try {
-      await PDFService.generarPDFMuestra(muestra.id_muestra || muestra.id_muestrea || muestra._id);
+      const updateData = {
+        tipoAnalisis: editingMuestra.tipoAnalisis,
+        tipoMuestreo: editingMuestra.tipoMuestreo,
+        fechaHoraMuestreo: convertISOToFechaHoraObject(editingMuestra.fechaHoraMuestreo),
+        lugarMuestreo: editingMuestra.lugarMuestreo,
+        identificacionMuestra: editingMuestra.identificacionMuestra,
+        planMuestreo: editingMuestra.planMuestreo,
+        condicionesAmbientales: editingMuestra.condicionesAmbientales,
+        preservacionMuestra: editingMuestra.preservacionMuestra,
+        preservacionMuestraOtra:
+          editingMuestra.preservacionMuestra === "Otro" ? editingMuestra.preservacionMuestraOtra : "",
+        analisisSeleccionados: editingMuestra.analisisSeleccionados,
+        observaciones: editingMuestra.observaciones,
+      };
+
+      await axios.put(
+        `${API_URLS.MUESTRAS}/${editingMuestra.id_muestra || editingMuestra._id}`,
+        updateData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      const updatedMuestras = muestras.map((m) =>
+        (m.id_muestra === editingMuestra.id_muestrea || m.id_muestrea === editingMuestra.id_muestrea || m.id_muestra === editingMuestra.id_muestra || m._id === editingMuestra._id)
+          ? { ...m, ...updateData }
+          : m
+      );
+      setMuestras(updatedMuestras);
+      setEditingMuestra(null);
+      setSnackbarMessage("Muestra actualizada exitosamente");
+      setSnackbarSeverity("success");
+      setSnackbarOpen(true);
     } catch (error) {
-      setSnackbarMessage("Error al generar el PDF: " + error.message);
+      console.error("Error al actualizar la muestra:", error);
+      setSnackbarMessage("Error al actualizar la muestra: " + (error.response?.data?.message || error.message));
       setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
@@ -962,61 +945,33 @@ const Muestras = memo(() => {
     }
   };
 
-  const handleEditMuestra = (muestra) => setEditingMuestra(muestra);
+  // 1. Memoizar ActionButton para evitar renders innecesarios
+  const MemoActionButton = React.memo(ActionButton);
 
-  // Al guardar, convertir el valor del input (en formato ISO) al objeto que espera el backend.
-  const handleSaveEdit = async () => {
-    try {
-      const updateData = {
-        tipoAnalisis: editingMuestra.tipoAnalisis,
-        tipoMuestreo: editingMuestra.tipoMuestreo,
-        // Se transforma el string ISO del input al objeto esperado por el backend
-        fechaHoraMuestreo: convertISOToFechaHoraObject(editingMuestra.fechaHoraMuestreo),
-        lugarMuestreo: editingMuestra.lugarMuestreo,
-        identificacionMuestra: editingMuestra.identificacionMuestra,
-        planMuestreo: editingMuestra.planMuestreo,
-        condicionesAmbientales: editingMuestra.condicionesAmbientales,
-        preservacionMuestra: editingMuestra.preservacionMuestra,
-        preservacionMuestraOtra:
-          editingMuestra.preservacionMuestra === "Otro" ? editingMuestra.preservacionMuestraOtra : "",
-        analisisSeleccionados: editingMuestra.analisisSeleccionados,
-        observaciones: editingMuestra.observaciones,
-      };
+  // 2. Definir handler de selección de muestra correctamente (sin custom hook)
+  const selectMuestraHandler = useCallback(
+    (muestra) => () => setSelectedMuestra(muestra),
+    [setSelectedMuestra]
+  );
 
-      // Imprime en consola el objeto updateData para verificar el formato
-      console.log("updateData a enviar:", updateData);
+  const handleFilterChange = useCallback((e) => {
+    setFilterType(e.target.value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, []);
 
-      await axios.put(
-        `${API_URLS.MUESTRAS}/${editingMuestra.id_muestra || editingMuestra._id}`,
-        updateData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+  const handleDateChange = useCallback((e) => {
+    setFilterDate(e.target.value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, []);
 
-      const updatedMuestras = muestras.map((m) =>
-        (m.id_muestra === editingMuestra.id_muestrea || m.id_muestrea === editingMuestra.id_muestrea || m.id_muestra === editingMuestra.id_muestra || m._id === editingMuestra._id)
-          ? { ...m, ...updateData }
-          : m
-      );
-      setMuestras(updatedMuestras);
-      setFilteredMuestras(updatedMuestras);
-      setEditingMuestra(null);
-      setSnackbarMessage("Muestra actualizada exitosamente");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-    } catch (error) {
-      console.error("Error al actualizar la muestra:", error);
-      setSnackbarMessage("Error al actualizar la muestra: " + (error.response?.data?.message || error.message));
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
-    }
-  };
+  const handleSearchChange = useCallback((e) => {
+    setSearch(e.target.value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, []);
 
-  const handleViewDetails = (muestra) => setSelectedMuestra(muestra);
+  const handlePageChange = useCallback((event, value) => {
+    setPagination((prev) => ({ ...prev, page: value }));
+  }, []);
 
   if (loading)
     return <CircularProgress sx={{ display: "block", margin: "20px auto" }} />;
@@ -1109,7 +1064,7 @@ const Muestras = memo(() => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredMuestras.map((muestra, idx) => (
+                {muestras.map((muestra, idx) => (
                   <TableRow
                     key={muestra.id_muestra || muestra.id_muestrea || muestra._id}
                     sx={{
@@ -1119,60 +1074,60 @@ const Muestras = memo(() => {
                       cursor: "pointer",
                     }}
                   >
-                    <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                    <TableCell onClick={selectMuestraHandler(muestra)}>
                       {muestra.id_muestrea || muestra.id_muestra || muestra._id}
                     </TableCell>
                     {!hideClientData && (
                       <>
-                        <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                        <TableCell onClick={selectMuestraHandler(muestra)}>
                           {muestra.cliente?.nombre || "N/A"}
                         </TableCell>
-                        <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                        <TableCell onClick={selectMuestraHandler(muestra)}>
                           {muestra.cliente?.documento || "N/A"}
                         </TableCell>
                       </>
                     )}
-                    <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                    <TableCell onClick={selectMuestraHandler(muestra)}>
                       <Chip label={muestra.estado} sx={getEstadoChipProps(muestra.estado).sx} />
                     </TableCell>
-                    <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                    <TableCell onClick={selectMuestraHandler(muestra)}>
                       {formatFecha(muestra.creadoPor?.fechaCreacion?.fecha)}
                     </TableCell>
-                    <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                    <TableCell onClick={selectMuestraHandler(muestra)}>
                       {muestra.lugarMuestreo}
                     </TableCell>
-                    <TableCell onClick={() => setSelectedMuestra(muestra)}>
+                    <TableCell onClick={selectMuestraHandler(muestra)}>
                       <Typography variant="subtitle1" color="text.primary">
                         {muestra.tipoAnalisis || "N/A"}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: "flex", gap: 1 }} onClick={(e) => e.stopPropagation()}>
-                        <ActionButton
+                        <MemoActionButton
                           tooltip="Ver Detalles"
                           onClick={() => handleViewDetails(muestra)}
                           IconComponent={VisibilityIcon}
                         />
                         {tipoUsuario !== "laboratorista" && (
                           <>
-                            <ActionButton
+                            <MemoActionButton
                               tooltip="Ver PDF"
                               onClick={() => handlePreviewPDF(muestra)}
                               IconComponent={PictureAsPdfIcon}
                             />
-                            <ActionButton
+                            <MemoActionButton
                               tooltip="Descargar PDF"
                               onClick={() => handleDownloadPDF(muestra)}
                               IconComponent={GetAppIcon}
                             />
-                            <ActionButton
+                            <MemoActionButton
                               tooltip="Editar Muestra"
                               onClick={() => handleEditMuestra(muestra)}
                               IconComponent={EditIcon}
                             />
                           </>
                         )}
-                        <ActionButton
+                        <MemoActionButton
                           tooltip="Registrar Resultados"
                           onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
                           IconComponent={AssignmentIcon}
