@@ -980,7 +980,6 @@ const Muestras = memo(() => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%)',
         py: 4,
         px: { xs: 0, md: 2 },
       }}

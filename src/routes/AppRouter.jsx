@@ -1,28 +1,49 @@
 // src/routes/AppRouter.jsx
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 import Layout from "../components/Layout";
 import PrivateRoute from "./PrivateRoute";
-import { CircularProgress, Box } from "@mui/material";
+import { createLazyComponent } from "../components/LazyLoad";
 
-// Carga dinámica de páginas
-const Dashboard = lazy(() => import("../pages/Dashboard"));
-const Users = lazy(() => import("../pages/Users"));
-const Muestras = lazy(() => import("../pages/Muestras"));
-const Login = lazy(() => import("../pages/Login"));
-const RegistroMuestras = lazy(() => import("../pages/RegistroMuestras"));
-const RecuperarContrasena = lazy(() => import("../pages/RecuperarContrasena"));
-const CambiarContrasena = lazy(() => import("../pages/CambiarContrasena"));
-const RegistrarResultados = lazy(() => import("../pages/RegistrarResultados"));
-const Unauthorized = lazy(() => import("../pages/Unauthorized"));
-const ListaResultados = lazy(() => import("../pages/ListaResultados"));
-const Auditorias = lazy(() => import("../pages/Auditorias"));
+// Carga dinámica de páginas con prioridades
+// Páginas de alta prioridad (carga inmediata)
+const Login = createLazyComponent(() => import("../pages/Login"), {
+  suspenseProps: { fallback: <div></div> } // Fallback mínimo para login
+});
 
-const AppRouter = () => {
-  return (
+const Dashboard = createLazyComponent(
+  () => import(/* webpackPrefetch: true */ "../pages/Dashboard")
+);
+
+// Páginas de uso frecuente (prefetch)
+const Muestras = createLazyComponent(
+  () => import(/* webpackPrefetch: true */ "../pages/Muestras")
+);
+
+// Páginas de uso normal (lazy regular)
+const Users = createLazyComponent(() => import("../pages/Users"));
+const RegistroMuestras = createLazyComponent(() => import("../pages/RegistroMuestras"));
+const RecuperarContrasena = createLazyComponent(() => import("../pages/RecuperarContrasena"));
+const CambiarContrasena = createLazyComponent(() => import("../pages/CambiarContrasena"));
+const RegistrarResultados = createLazyComponent(() => import("../pages/RegistrarResultados"));
+const Unauthorized = createLazyComponent(() => import("../pages/Unauthorized"));
+const ListaResultados = createLazyComponent(() => import("../pages/ListaResultados"));
+const Auditorias = createLazyComponent(() => import("../pages/Auditorias"));
+
+const AppRouter = () => {  return (
     <Router>
-      <Suspense fallback={<Box sx={{display:'flex',justifyContent:'center',alignItems:'center',height:'100vh'}}><CircularProgress color="primary" size={60} /></Box>}>
+      <Suspense fallback={
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          background: 'linear-gradient(135deg, #f5f7fa 0%, #d7f7dd 100%)'
+        }}>
+          <div className="loading-spinner"></div>
+        </div>
+      }>
         <Routes>
           {/* Rutas públicas */}
           <Route path="/login" element={<Login />} />
@@ -106,9 +127,7 @@ const AppRouter = () => {
                 </Layout>
               </PrivateRoute>
             }
-          />
-
-          <Route
+          />          <Route
             path="/auditorias"
             element={
               <PrivateRoute>

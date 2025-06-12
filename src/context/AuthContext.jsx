@@ -1,5 +1,7 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import cacheManager from "../config/cache-manager";
+import API_CONFIG from "../config/api-config";
 
 const AuthContext = createContext();
 
@@ -14,29 +16,74 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [perfil, setPerfil] = useState(null);
   const [isPerfilManuallyUpdated, setIsPerfilManuallyUpdated] = useState(false);
+  const [perfilLoading, setPerfilLoading] = useState(false);
 
-  // Carga inicial desde localStorage
+  // Carga inicial desde localStorage - optimizada
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
-    const storedPerfilManual = localStorage.getItem("isPerfilManuallyUpdated");
+    const initAuth = () => {
+      const storedUser = localStorage.getItem("user");
+      const storedToken = localStorage.getItem("token");
+      const storedPerfilManual = localStorage.getItem("isPerfilManuallyUpdated");
 
-    if (storedUser && storedToken) {
-      const parsedUser = JSON.parse(storedUser);
-      setAuth({
-        user: parsedUser,
-        token: storedToken,
-        tipoUsuario: parsedUser.rol,
-        isAuthenticated: true
-      });
-      // Si el usuario actualizó el perfil manualmente, respetar ese flag
-      setIsPerfilManuallyUpdated(storedPerfilManual === 'true');
-    }
+      if (storedUser && storedToken) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setAuth({
+            user: parsedUser,
+            token: storedToken,
+            tipoUsuario: parsedUser.rol,
+            isAuthenticated: true
+          });
+          // Si el usuario actualizó el perfil manualmente, respetar ese flag
+          setIsPerfilManuallyUpdated(storedPerfilManual === 'true');
+        } catch (error) {
+          console.error("Error parsing stored user data:", error);
+          // Limpiar datos corruptos
+          localStorage.removeItem("user");
+          localStorage.removeItem("token");
+        }
+      }
+      setLoading(false);
+    };
 
-    setLoading(false);
+    initAuth();
   }, []);
 
-  // Fetch del perfil del usuario autenticado
+  // Función memoizada para obtener perfil del usuario
+  const fetchUserProfile = useCallback(async (userId, token) => {
+    if (!userId || !token) return null;
+    
+    // Verificar primero en caché
+    const cacheKey = `perfil:${userId}`;
+    const cachedPerfil = cacheManager.get(cacheKey);
+    
+    if (cachedPerfil) {
+      console.log("Perfil obtenido de caché");
+      return cachedPerfil;
+    }
+    
+    // Si no está en caché, hacer la petición
+    try {
+      setPerfilLoading(true);
+      const { data } = await axios.get(
+        `${API_CONFIG.BASE_URLS.USUARIOS}/usuarios/${userId}/perfil`, 
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      // Guardar en caché
+      cacheManager.set(cacheKey, data, API_CONFIG.CACHE_TTL.USER_PROFILE);
+      return data;
+    } catch (err) {
+      console.error("Error fetching perfil:", err);
+      return null;
+    } finally {
+      setPerfilLoading(false);
+    }
+  }, []);
+
+  // Fetch del perfil del usuario autenticado - optimizado
   useEffect(() => {
     if (!auth.token || !auth.user || !auth.isAuthenticated) return;
 
@@ -52,26 +99,14 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    console.log("Haciendo fetch del perfil desde el servidor...");
-    axios
-      .get(`${import.meta.env.VITE_BACKEND_URL}/api/usuarios/${userId}/perfil`, {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-          'Cache-Control': 'no-cache' // Evita el caché
-        }
-      })
-      .then(({ data }) => {
-        console.log("Datos del perfil obtenidos del servidor:", data);
-        setPerfil(data);
-      })
-      .catch((err) => {
-        console.error("Error fetching perfil:", err);
-        setPerfil(null);
-      });
-  }, [auth, isPerfilManuallyUpdated]);
+    console.log("Verificando perfil de usuario...");
+    fetchUserProfile(userId, auth.token).then(data => {
+      if (data) setPerfil(data);
+    });
+  }, [auth.token, auth.user, auth.isAuthenticated, isPerfilManuallyUpdated, fetchUserProfile]);
 
-  // Función login
-  const login = (userData) => {
+  // Función login - optimizada
+  const login = useCallback((userData) => {
     if (!userData.token) {
       console.error("Falta token en login");
       return;
@@ -90,15 +125,24 @@ export const AuthProvider = ({ children }) => {
 
     setPerfil(userData);
     setIsPerfilManuallyUpdated(false);
-  };
+    
+    // Invalidar cualquier caché previa al hacer login
+    cacheManager.invalidateByPrefix('perfil:');
+  }, []);
 
-  // Función para actualizar el perfil directamente
-  const updatePerfil = (newPerfil) => {
-    console.log("Actualizando perfil manualmente:", newPerfil);
+  // Función para actualizar el perfil directamente - optimizada
+  const updatePerfil = useCallback((newPerfil) => {
+    console.log("Actualizando perfil manualmente");
     setPerfil(newPerfil);
     setIsPerfilManuallyUpdated(true);
     localStorage.setItem("isPerfilManuallyUpdated", "true");
-  };
+    
+    // Actualizar la caché con el nuevo perfil
+    const userId = auth.user?.usuarioId || auth.user?._id || auth.user?.id;
+    if (userId) {
+      cacheManager.set(`perfil:${userId}`, newPerfil, API_CONFIG.CACHE_TTL.USER_PROFILE);
+    }
+  }, [auth.user]);
 
   // Función logout
   const logout = () => {

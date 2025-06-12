@@ -5,6 +5,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import theme from "./theme";
+// Importamos los estilos optimizados
+import "./optimized.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

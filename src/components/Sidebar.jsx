@@ -41,6 +41,7 @@ const Sidebar = () => {
       if (userStr) {
         const user = JSON.parse(userStr);
         const role = (user.rol || "").toLowerCase();
+        console.log("Rol del usuario obtenido:", role); // Registro para depuración
         setUserRole(role);
       }
     } catch (error) {
@@ -93,6 +94,8 @@ const Sidebar = () => {
     return item.roles.includes(userRole);
   };
 
+  const filteredMenuItems = menuItems.filter(shouldShowMenuItem);
+
   const drawerContent = (
     <Box
       sx={{
@@ -118,7 +121,7 @@ const Sidebar = () => {
         <Divider sx={{ mb: 1 }} />
 
         <List>
-          {menuItems.map((item) => (            <ListItem key={item.text} disablePadding sx={{ m: 1 }}>
+          {filteredMenuItems.map((item) => (            <ListItem key={item.text} disablePadding sx={{ m: 1 }}>
               <ListItemButton
                 component={NavLink}
                 to={item.path}

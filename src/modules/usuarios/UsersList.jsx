@@ -250,7 +250,7 @@ const UsersList = memo(() => {
   const accentColor = "#1A1A1A";
 
   return (
-    <Paper elevation={4} sx={{ p: 3, mt: 4, borderRadius: 4, background: secondaryColor, boxShadow: "0 6px 24px 0 rgba(57,169,0,0.10)" }}>
+    <Paper elevation={4} sx={{ p: 3, mt: 4, borderRadius: 4, background: secondaryColor, boxShadow: "0 6px 24px 0 rgba(209, 250, 5, 0.1)" }}>
       {/* Encabezado atractivo */}
       <Box display="flex" alignItems="center" mb={3} gap={2}>
         <Box sx={{ background: primaryColor, borderRadius: "50%", p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -32,12 +32,12 @@ const Login = () => {
   const handleClickShowPassword = () => {
     setShowPassword((prev) => !prev);
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    // Validaciones en cliente para evitar llamadas innecesarias
     if (!credentials.email || !credentials.password) {
       setError("⚠ Todos los campos son obligatorios.");
       setLoading(false);
@@ -50,7 +50,13 @@ const Login = () => {
     }
 
     try {
+      // Usar la configuración centralizada de APIs
       const url = `${import.meta.env.VITE_BACKEND_URL || 'https://backend-sena-lab-1-qpzp.onrender.com'}/api/usuarios/login`;
+      
+      // Optimización: Precarga el dashboard mientras se autentica
+      const prefetchDashboardModule = import('../pages/Dashboard.jsx');
+      
+      // Realizar login
       const response = await axios.post(url, credentials);
 
       if (response.data && response.data.token) {
@@ -60,17 +66,26 @@ const Login = () => {
           setLoading(false);
           return;
         }
+        
+        // Crear objeto de usuario sin console.logs innecesarios
         const usuarioFinal = {
           ...usuario,
           email: credentials.email,
           token,
           rol: usuario.rol,
         };
-        console.log("Datos del usuario desde el backend:", usuario); // Depuración
-        console.log("usuarioFinal:", usuarioFinal); // Depuración
+        
+        // Guardar datos en localStorage
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(usuarioFinal));
+        
+        // Usar login del AuthContext (que ahora está optimizado)
         login(usuarioFinal);
+        
+        // Verificar que el módulo del dashboard se haya cargado antes de navegar
+        await prefetchDashboardModule;
+        
+        // Navegar al dashboard
         navigate("/dashboard");
       } else {
         setError("Error: Respuesta inválida del servidor");

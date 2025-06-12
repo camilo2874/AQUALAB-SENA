@@ -364,7 +364,7 @@ const ListaResultados = memo(() => {
   };
 
   return (
-    <Paper sx={{ p: 4, margin: 'auto', maxWidth: 1200, mt: 4, bgcolor: 'background.paper', boxShadow: 6, borderRadius: 3 }}>
+    <Paper sx={{ p: 4, margin: 'auto', maxWidth: 1390, mt: 4, bgcolor: 'background.paper', boxShadow: 6, borderRadius: 4 }}>
       <Typography variant="h4" align="center" gutterBottom sx={{ 
         color: '#39A900',
         fontWeight: 'bold',

@@ -1,0 +1,57 @@
+/* Estilos optimizados para carga inicial */
+
+/* Animación para el spinner de carga */
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(57, 169, 0, 0.2);
+  border-top-color: #39A900;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Optimización para transiciones */
+.fade-enter {
+  opacity: 0;
+}
+.fade-enter-active {
+  opacity: 1;
+  transition: opacity 200ms;
+}
+.fade-exit {
+  opacity: 1;
+}
+.fade-exit-active {
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+/* Clases para mejora visual durante carga */
+.content-placeholder {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Optimizaciones para tablas grandes */
+.virtualized-table {
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+}
+
+/* Mejoras de rendimiento para elementos fijos */
+.fixed-element {
+  will-change: transform;
+  transform: translateZ(0);
+}
