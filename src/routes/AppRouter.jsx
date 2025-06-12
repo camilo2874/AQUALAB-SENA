@@ -1,6 +1,7 @@
 // src/routes/AppRouter.jsx
 import React, { Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { CircularProgress, Box } from "@mui/material";
 
 import Layout from "../components/Layout";
 import PrivateRoute from "./PrivateRoute";
@@ -31,18 +32,19 @@ const Unauthorized = createLazyComponent(() => import("../pages/Unauthorized"));
 const ListaResultados = createLazyComponent(() => import("../pages/ListaResultados"));
 const Auditorias = createLazyComponent(() => import("../pages/Auditorias"));
 
-const AppRouter = () => {  return (
+const AppRouter = () => {
+  return (
     <Router>
       <Suspense fallback={
-        <div style={{
+        <Box sx={{
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           height: '100vh',
           background: 'linear-gradient(135deg, #f5f7fa 0%, #d7f7dd 100%)'
         }}>
-          <div className="loading-spinner"></div>
-        </div>
+          <CircularProgress color="primary" />
+        </Box>
       }>
         <Routes>
           {/* Rutas públicas */}

@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:debug": "vite build --debug",
     "lint": "eslint .",
     "preview": "vite preview"
-  },  "dependencies": {
+  },"dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@fontsource/work-sans": "^5.2.5",

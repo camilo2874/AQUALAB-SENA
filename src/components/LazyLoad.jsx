@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 
-// Componente de carga personalizado
+// Componente de carga simplificado
 const LoadingFallback = () => (
   <Box 
     sx={{ 
@@ -17,42 +17,21 @@ const LoadingFallback = () => (
 );
 
 /**
- * Componente de carga perezosa (lazy loading) con Suspense integrado
- * @param {Object} props - Propiedades del componente
- * @param {React.ComponentType} props.component - Componente a cargar de forma perezosa
- * @param {Object} [props.fallback] - Componente a mostrar mientras se carga (opcional)
- * @param {Object} [props.suspenseProps] - Propiedades adicionales para Suspense (opcional)
- * @returns {React.ReactElement} - Componente con carga perezosa
- */
-const LazyLoad = ({ 
-  component: Component, 
-  fallback = <LoadingFallback />, 
-  suspenseProps = {}, 
-  ...rest 
-}) => {
-  return (
-    <Suspense fallback={fallback} {...suspenseProps}>
-      <Component {...rest} />
-    </Suspense>
-  );
-};
-
-/**
- * Función para crear un componente con carga perezosa
+ * Función simplificada para crear un componente con carga perezosa
  * @param {() => Promise<any>} importFunc - Función que importa el componente
- * @param {Object} [options] - Opciones adicionales
- * @returns {React.ReactElement} - Componente con carga perezosa
+ * @param {Object} [options] - Opciones adicionales (opcional)
+ * @returns {Function} - Componente React con carga perezosa
  */
 export const createLazyComponent = (importFunc, options = {}) => {
   const LazyComponent = lazy(importFunc);
-  return (props) => (
-    <LazyLoad
-      component={LazyComponent}
-      fallback={options.fallback || <LoadingFallback />}
-      suspenseProps={options.suspenseProps || {}}
-      {...props}
-    />
-  );
+  
+  return function LazyWrapper(props) {
+    return (
+      <Suspense fallback={options.fallback || <LoadingFallback />}>
+        <LazyComponent {...props} />
+      </Suspense>
+    );
+  };
 };
 
-export default LazyLoad;
+export default createLazyComponent;

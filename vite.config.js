@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import { splitVendorChunkPlugin } from 'vite';
 
 export default defineConfig(({ mode }) => {
   // Carga las variables de entorno según el modo (development, production, etc.)
@@ -12,36 +11,28 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      react(),
-      splitVendorChunkPlugin() // Separar código de dependencias
+      react()
     ],
-    base: "./", // Corrige rutas en producción
+    base: "/", // Importante para Vercel
     build: {
-      outDir: "dist", // Archivos en `dist/`
-      assetsDir: "assets", // Archivos JS/CSS en `dist/assets/`
-      // Optimizaciones específicas para producción
-      target: 'esnext', // Target moderno para mejores optimizaciones
-      minify: 'terser', // Mejor minificación
-      terserOptions: {
-        compress: {
-          drop_console: isProd, // Elimina console.log en producción
-          drop_debugger: isProd
-        }
-      },
+      outDir: "dist",
+      assetsDir: "assets",
+      // Optimización compatible con Vercel
+      minify: isProd,
+      sourcemap: !isProd,
       rollupOptions: {
         output: {
-          manualChunks: {
-            // Separate chunks for big libraries
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'mui-vendor': ['@mui/material', '@mui/icons-material'],
-            'chart-vendor': ['chart.js', 'react-chartjs-2'],
-            'utils-vendor': ['axios', 'jspdf', 'framer-motion']
+          manualChunks: (id) => {
+            // Chunks simples para mejorar compatibilidad
+            if (id.includes('node_modules')) {
+              if (id.includes('react')) return 'vendor-react';
+              if (id.includes('@mui')) return 'vendor-mui';
+              if (id.includes('chart') || id.includes('recharts')) return 'vendor-chart';
+              return 'vendor'; // el resto de node_modules
+            }
           }
         }
-      },
-      // Compresión para reducir tamaño de archivos
-      reportCompressedSize: true,
-      chunkSizeWarningLimit: 1000, // Advertencia si un chunk supera 1MB
+      }
     },
     server: {
       proxy: {
@@ -51,19 +42,6 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api/, "")
         }
       }
-    },
-    // Optimization for development
-    optimizeDeps: {
-      include: [
-        'react', 
-        'react-dom', 
-        'react-router-dom', 
-        '@mui/material', 
-        'axios',
-        'chart.js'
-      ]
-    },
-    // Mejorar la cache en desarrollo
-    cacheDir: '.vite_cache'
+    }
   };
 });
