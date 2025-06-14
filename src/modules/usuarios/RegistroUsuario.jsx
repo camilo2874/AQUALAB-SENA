@@ -180,7 +180,7 @@ const RegistroUsuario = () => {
     console.log("Datos que se envían al backend:", datosRegistro);
 
     try {
-      const url = `${import.meta.env.VITE_BACKEND_URL}/api/usuarios/registro`;
+      const url = `${import.meta.env.VITE_BACKEND_URL}/usuarios/registro`;
       const respuesta = await axios.post(url, datosRegistro, {
         headers: {
           "Content-Type": "application/json",

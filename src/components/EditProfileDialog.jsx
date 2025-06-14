@@ -72,7 +72,7 @@ const EditProfileDialog = ({ open, handleClose }) => {
     try {
       if (!user?._id) throw new Error('No autenticado');
       const apiUrl = import.meta.env.VITE_BACKEND_URL;
-      const url = `${apiUrl}/api/usuarios/${user._id}/perfil`;
+      const url = `${apiUrl}/usuarios/${user._id}/perfil`;
 
       const fd = new FormData();
       fd.append('nombre', formData.nombre);

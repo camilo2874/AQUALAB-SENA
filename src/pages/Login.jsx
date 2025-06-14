@@ -51,7 +51,7 @@ const Login = () => {
 
     try {
       // Usar la configuración centralizada de APIs
-      const url = `${import.meta.env.VITE_BACKEND_URL || 'https://backend-sena-lab-1-qpzp.onrender.com'}/api/usuarios/login`;
+      const url = `${import.meta.env.VITE_BACKEND_URL}/usuarios/login`;
       
       // Optimización: Precarga el dashboard mientras se autentica
       const prefetchDashboardModule = import('../pages/Dashboard.jsx');
