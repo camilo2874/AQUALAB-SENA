@@ -24,7 +24,7 @@ const CustomForm = ({ onSubmit }) => {
         onChange={handleChange}
         sx={{
           "& .MuiOutlinedInput-root": {
-            "& fieldset": { borderColor: "#39A900" }, // Verde institucional
+            "& fieldset": { borderColor: "#39A900" }, 
             "&:hover fieldset": { borderColor: "#2E7D00" },
           },
         }}

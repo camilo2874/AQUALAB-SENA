@@ -66,26 +66,26 @@ const Sidebar = () => {
       text: "Registrar Muestra",
       icon: <BiotechIcon />,
       path: "/registro-muestras",
-      roles: ["administrador", "super_admin"],
+      roles: ["administrador"],
     },
     {
       text: "Muestras",
       icon: <ScienceIcon />,
       path: "/muestras",
-      roles: [],
+      roles: ["administrador", "laboratorista"],
       
     },
     {
       text: "Resultados",
       icon: <AssignmentIcon />,
       path: "/lista-resultados",
-      roles: ["administrador", "super_admin"],
+      roles: ["administrador"],
     },
     {
       text: "Auditorias",
       icon: <FactCheckIcon />,
       path: "/auditorias",
-      roles: ["administrador", "super_admin"],
+      roles: ["administrador"],
     },
   ];
 
