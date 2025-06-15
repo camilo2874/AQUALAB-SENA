@@ -1342,10 +1342,9 @@ const Dashboard = () => {
     const fecha = new Date().toISOString().split('T')[0];
     doc.save(`Informe-Dashboard-AQUALAB-${fecha}.pdf`);
   };
-
   // Limpiar logs de consola en producción
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.MODE === 'production') {
       // eslint-disable-next-line no-console
       console.log = () => {};
       // eslint-disable-next-line no-console

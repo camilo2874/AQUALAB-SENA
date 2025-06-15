@@ -8,12 +8,16 @@ export default defineConfig(({ mode }) => {
   
   // Configuraciones específicas según el modo
   const isProd = mode === 'production';
-
   return {
     plugins: [
       react()
     ],
     base: "/", // Importante para Vercel
+    define: {
+      // Define process.env para compatibilidad con librerías que lo usan
+      'process.env': {},
+      'process.env.NODE_ENV': JSON.stringify(mode),
+    },
     build: {
       outDir: "dist",
       assetsDir: "assets",

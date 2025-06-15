@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useContext, memo, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useContext, memo, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { PDFService } from '../services/pdfGenerator';
+import SignatureCanvas from 'react-signature-canvas';
 import {
   Table,
   TableBody,
@@ -28,9 +29,12 @@ import {
   Tooltip,
   Pagination,
   Snackbar,
-  Alert,
-  Grid,
+  Alert,  Grid,
   Divider,
+  Card,
+  CardContent,
+  Fade,
+  Backdrop,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import GetAppIcon from "@mui/icons-material/GetApp";
@@ -196,7 +200,8 @@ const getEstadoChipProps = (estado) => {
 /* ======================== MODALES ======================== */
 
 /* Modal de Detalle Completo: se muestran todos los datos */
-const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientData, tipoUsuario }) => {
+const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientData, tipoUsuario, onEstadoChange, onFirmarDocumento, isProcessing, setIsProcessing }) => {
+  
   const handleViewPDF = async () => {
     if (!selectedMuestra) return;
     try {
@@ -205,23 +210,145 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       console.error("Error al ver PDF:", error);
     }
   };
+  const handleAceptarCotizacion = async () => {
+    if (!selectedMuestra || isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
+      
+      // Actualizar la muestra para marcar como aceptada
+      const datosActualizacion = {
+        cotizacionAceptada: true,
+        observaciones: (selectedMuestra.observaciones || '') + '\n[SISTEMA] Cotización aceptada por el cliente'
+      };
 
+      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
+      
+      // Actualizar la muestra local
+      const muestraActualizada = {
+        ...selectedMuestra,
+        cotizacionAceptada: true,
+        observaciones: datosActualizacion.observaciones
+      };
+      
+      onEstadoChange(muestraActualizada);
+      
+    } catch (error) {
+      console.error("Error al aceptar cotización:", error);
+      alert("Error al aceptar la cotización: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  const handleRechazarCotizacion = async () => {
+    if (!selectedMuestra || isProcessing) return;
+    
+    const confirmacion = window.confirm("¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'.");
+    if (!confirmacion) return;
+    
+    setIsProcessing(true);
+    try {
+      const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
+      
+      // Actualizar el estado de la muestra a rechazada
+      const datosActualizacion = {
+        estado: "Rechazada",
+        observaciones: (selectedMuestra.observaciones || '') + '\n[SISTEMA] Cotización rechazada por el cliente'
+      };
+
+      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
+      
+      // Actualizar la muestra local
+      const muestraActualizada = {
+        ...selectedMuestra,
+        estado: "Rechazada",
+        observaciones: datosActualizacion.observaciones
+      };
+      
+      onEstadoChange(muestraActualizada);
+      onClose(); // Cerrar modal después de rechazar
+      
+    } catch (error) {
+      console.error("Error al rechazar cotización:", error);
+      alert("Error al rechazar la cotización: " + error.message);    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const esCotizacion = selectedMuestra?.estado === "En Cotización" || selectedMuestra?.estado === "En Cotizacion";
+  const cotizacionAceptada = selectedMuestra?.cotizacionAceptada;
   return (
     <Modal open={selectedMuestra !== null} onClose={onClose}>
       <Box sx={modalStyle}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">Detalles de la Muestra</Typography>
-          {tipoUsuario !== "laboratorista" && (
-            <Button
-              variant="contained"
-              startIcon={<PictureAsPdfIcon />}
-              onClick={handleViewPDF}
-              sx={{ backgroundColor: '#39A900', '&:hover': { backgroundColor: '#2d8000' } }}
-            >
-              Ver PDF
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {tipoUsuario !== "laboratorista" && (
+              <Button
+                variant="contained"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={handleViewPDF}
+                sx={{ backgroundColor: '#39A900', '&:hover': { backgroundColor: '#2d8000' } }}
+              >
+                Ver PDF
+              </Button>
+            )}
+          </Box>
         </Box>
+        
+        {/* Botones de Cotización */}
+        {esCotizacion && tipoUsuario !== "laboratorista" && (
+          <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
+            <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+              Acciones de Cotización
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {!cotizacionAceptada ? (
+                <>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    onClick={handleAceptarCotizacion}
+                    disabled={isProcessing}
+                    startIcon={isProcessing ? <CircularProgress size={20} /> : null}
+                  >
+                    {isProcessing ? 'Procesando...' : 'Aceptar Cotización'}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={handleRechazarCotizacion}
+                    disabled={isProcessing}
+                    startIcon={isProcessing ? <CircularProgress size={20} /> : null}
+                  >
+                    {isProcessing ? 'Procesando...' : 'Rechazar Cotización'}
+                  </Button>
+                </>
+              ) : (
+                <>                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={onFirmarDocumento}
+                    disabled={isProcessing}
+                    sx={{ backgroundColor: '#1976d2' }}
+                  >
+                    Firmar Documento
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    onClick={handleRechazarCotizacion}
+                    disabled={isProcessing}
+                    startIcon={isProcessing ? <CircularProgress size={20} /> : null}
+                  >
+                    {isProcessing ? 'Procesando...' : 'Rechazar Cotización'}
+                  </Button>
+                </>
+              )}
+            </Box>
+          </Box>
+        )}
         {selectedMuestra && (
           <TableContainer component={Paper} sx={{ maxWidth: "100%" }}>
             <Table>
@@ -794,11 +921,48 @@ const Muestras = memo(() => {
   const navigate = useNavigate();
   const { tipoUsuario } = useContext(AuthContext);
   // Define la variable que indica si se debe ocultar la información del cliente
-  const hideClientData = tipoUsuario === "laboratorista";
-
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const hideClientData = tipoUsuario === "laboratorista";  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState("error");
+  const [snackbarSeverity, setSnackbarSeverity] = useState("success");
+  // Estados para el modal de firmas
+  const [openFirmasModal, setOpenFirmasModal] = useState(false);
+  const [firmas, setFirmas] = useState({
+    administrador: null,
+    cliente: null
+  });
+  const [firmandoMuestra, setFirmandoMuestra] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const firmaAdministradorRef = useRef(null);
+  const firmaClienteRef = useRef(null);
+
+  // Función para manejar cambios de estado desde el modal
+  const handleEstadoChange = useCallback((muestraActualizada) => {
+    setMuestras(prevMuestras => 
+      prevMuestras.map(m => {
+        const idMuestra = m.id_muestra || m.id_muestrea || m._id;
+        const idActualizada = muestraActualizada.id_muestra || muestraActualizada.id_muestrea || muestraActualizada._id;
+        
+        if (idMuestra === idActualizada) {
+          return { ...m, ...muestraActualizada };
+        }
+        return m;
+      })
+    );
+    
+    // Actualizar la muestra seleccionada si es la misma
+    if (selectedMuestra) {
+      const idSeleccionada = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
+      const idActualizada = muestraActualizada.id_muestra || muestraActualizada.id_muestrea || muestraActualizada._id;
+      
+      if (idSeleccionada === idActualizada) {
+        setSelectedMuestra({ ...selectedMuestra, ...muestraActualizada });
+      }
+    }
+    
+    setSnackbarMessage("Estado de la muestra actualizado exitosamente");
+    setSnackbarSeverity("success");
+    setSnackbarOpen(true);
+  }, [selectedMuestra]);
 
   const handleSnackbarClose = (event, reason) => {
     if (reason === "clickaway") return;
@@ -968,10 +1132,137 @@ const Muestras = memo(() => {
     setSearch(e.target.value);
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
-
   const handlePageChange = useCallback((event, value) => {
     setPagination((prev) => ({ ...prev, page: value }));
   }, []);
+
+  // Funciones para manejar las firmas
+  const handleFirmarDocumento = async () => {
+    if (!selectedMuestra || isProcessing) return;
+    
+    // Abrir modal de firmas
+    setFirmandoMuestra(selectedMuestra);
+    setFirmas({
+      administrador: null,
+      cliente: null
+    });
+    setOpenFirmasModal(true);
+  };
+
+  const handleGuardarFirmaAdministrador = () => {
+    if (firmaAdministradorRef.current && !firmaAdministradorRef.current.isEmpty()) {
+      const firmaData = firmaAdministradorRef.current.toDataURL();
+      setFirmas(prev => ({
+        ...prev,
+        administrador: {
+          firma: firmaData,
+          fecha: new Date().toISOString(),
+          nombre: localStorage.getItem('nombre') || 'Administrador',
+          documento: localStorage.getItem('cedula') || 'admin'
+        }
+      }));
+    }
+  };
+
+  const handleGuardarFirmaCliente = () => {
+    if (firmaClienteRef.current && !firmaClienteRef.current.isEmpty()) {
+      const firmaData = firmaClienteRef.current.toDataURL();
+      setFirmas(prev => ({
+        ...prev,
+        cliente: {
+          firma: firmaData,
+          fecha: new Date().toISOString(),
+          nombre: firmandoMuestra?.cliente?.nombre || firmandoMuestra?.nombreCliente || 'Cliente',
+          documento: firmandoMuestra?.cliente?.documento || firmandoMuestra?.documento || ''
+        }
+      }));
+    }
+  };
+
+  const handleLimpiarFirmaAdministrador = () => {
+    if (firmaAdministradorRef.current) {
+      firmaAdministradorRef.current.clear();
+    }
+    setFirmas(prev => ({ ...prev, administrador: null }));
+  };
+
+  const handleLimpiarFirmaCliente = () => {
+    if (firmaClienteRef.current) {
+      firmaClienteRef.current.clear();
+    }
+    setFirmas(prev => ({ ...prev, cliente: null }));
+  };
+
+  const handleCompletarFirmas = async () => {
+    if (!firmandoMuestra || !firmas.administrador || !firmas.cliente) {
+      setSnackbarMessage("Ambas firmas son requeridas para completar el proceso");
+      setSnackbarSeverity("error");
+      setSnackbarOpen(true);
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const idMuestra = firmandoMuestra.id_muestra || firmandoMuestra.id_muestrea || firmandoMuestra._id;
+      
+      // Actualizar la muestra con las firmas y cambiar estado a "Recibida"
+      const datosActualizacion = {
+        estado: "Recibida",
+        firmas: {
+          firmaAdministrador: firmas.administrador,
+          firmaCliente: firmas.cliente
+        },
+        observaciones: (firmandoMuestra.observaciones || '') + '\n[SISTEMA] Documento firmado digitalmente'
+      };
+
+      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
+      
+      // Actualizar la muestra local
+      const muestraActualizada = {
+        ...firmandoMuestra,
+        estado: "Recibida",
+        firmas: datosActualizacion.firmas,
+        observaciones: datosActualizacion.observaciones,
+        cotizacionAceptada: true // Mantener que fue aceptada
+      };
+      
+      handleEstadoChange(muestraActualizada);
+      
+      // Cerrar modales
+      setOpenFirmasModal(false);
+      setFirmandoMuestra(null);
+      setFirmas({
+        administrador: null,
+        cliente: null
+      });
+      
+      setSnackbarMessage("Documento firmado exitosamente. La muestra ha sido recibida.");
+      setSnackbarSeverity("success");
+      setSnackbarOpen(true);
+      
+    } catch (error) {
+      console.error("Error al completar firmas:", error);
+      setSnackbarMessage("Error al completar las firmas: " + error.message);
+      setSnackbarSeverity("error");
+      setSnackbarOpen(true);    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCerrarModalFirmas = () => {
+    setOpenFirmasModal(false);
+    setFirmandoMuestra(null);
+    setFirmas({
+      administrador: null,
+      cliente: null
+    });
+    if (firmaAdministradorRef.current) {
+      firmaAdministradorRef.current.clear();
+    }
+    if (firmaClienteRef.current) {
+      firmaClienteRef.current.clear();
+    }
+  };
 
   if (loading)
     return <CircularProgress sx={{ display: "block", margin: "20px auto" }} />;
@@ -1148,20 +1439,231 @@ const Muestras = memo(() => {
             color="primary"
           />
         </Box>
-        {/* Modales y Snackbar */}
-        <DetailMuestraModal
+        {/* Modales y Snackbar */}        <DetailMuestraModal
           selectedMuestra={selectedMuestra}
           onClose={() => setSelectedMuestra(null)}
           modalStyle={modalStyle}
           hideClientData={hideClientData}
           tipoUsuario={tipoUsuario}
-        />
-        <EditMuestraModal
+          onEstadoChange={handleEstadoChange}
+          onFirmarDocumento={handleFirmarDocumento}
+          isProcessing={isProcessing}
+          setIsProcessing={setIsProcessing}
+        /><EditMuestraModal
           editingMuestra={editingMuestra}
           setEditingMuestra={setEditingMuestra}
           onSave={handleSaveEdit}
           modalStyle={modalStyle}
         />
+        
+        {/* Modal de Firmas */}
+        <Modal
+          open={openFirmasModal}
+          onClose={handleCerrarModalFirmas}
+          closeAfterTransition
+          slots={{ backdrop: Backdrop }}
+          slotProps={{ backdrop: { timeout: 500 } }}
+        >
+          <Fade in={openFirmasModal}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '90%',
+                maxWidth: 800,
+                bgcolor: 'background.paper',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                p: 4,
+                borderRadius: 3,
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
+              <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold', color: '#39A900', textAlign: 'center' }}>
+                Firmas Digitales
+              </Typography>
+              
+              <Typography variant="body1" sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}>
+                Para completar el proceso, tanto el administrador como el cliente deben firmar digitalmente
+              </Typography>
+
+              <Grid container spacing={3}>
+                {/* Firma del Administrador */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 2, color: '#39A900', textAlign: 'center' }}>
+                        Firma del Administrador
+                      </Typography>
+                      
+                      {firmas.administrador ? (
+                        <Box sx={{ textAlign: 'center' }}>
+                          <img 
+                            src={firmas.administrador.firma} 
+                            alt="Firma Administrador" 
+                            style={{ 
+                              maxWidth: '100%', 
+                              height: '150px', 
+                              border: '2px solid #39A900', 
+                              borderRadius: '8px',
+                              backgroundColor: 'white'
+                            }} 
+                          />
+                          <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                            Firmado por: {firmas.administrador.nombre}
+                          </Typography>
+                          <Button 
+                            variant="outlined" 
+                            color="error" 
+                            onClick={handleLimpiarFirmaAdministrador}
+                            sx={{ mt: 1 }}
+                          >
+                            Limpiar Firma
+                          </Button>
+                        </Box>
+                      ) : (
+                        <Box>
+                          <Box sx={{ 
+                            border: '2px dashed #ccc', 
+                            borderRadius: 2, 
+                            p: 1,
+                            backgroundColor: 'white'
+                          }}>
+                            <SignatureCanvas
+                              ref={firmaAdministradorRef}
+                              canvasProps={{
+                                width: 300,
+                                height: 150,
+                                style: { width: '100%', height: '150px' }
+                              }}
+                              backgroundColor="white"
+                            />
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center' }}>
+                            <Button 
+                              variant="contained" 
+                              onClick={handleGuardarFirmaAdministrador}
+                              sx={{ backgroundColor: '#39A900', '&:hover': { backgroundColor: '#2d8000' } }}
+                            >
+                              Guardar Firma
+                            </Button>
+                            <Button 
+                              variant="outlined" 
+                              onClick={handleLimpiarFirmaAdministrador}
+                            >
+                              Limpiar
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Firma del Cliente */}
+                <Grid item xs={12} md={6}>
+                  <Card sx={{ p: 2, borderRadius: 2, boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" sx={{ mb: 2, color: '#39A900', textAlign: 'center' }}>
+                        Firma del Cliente
+                      </Typography>
+                      
+                      {firmas.cliente ? (
+                        <Box sx={{ textAlign: 'center' }}>
+                          <img 
+                            src={firmas.cliente.firma} 
+                            alt="Firma Cliente" 
+                            style={{ 
+                              maxWidth: '100%', 
+                              height: '150px', 
+                              border: '2px solid #39A900', 
+                              borderRadius: '8px',
+                              backgroundColor: 'white'
+                            }} 
+                          />
+                          <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                            Firmado por: {firmas.cliente.nombre}
+                          </Typography>
+                          <Button 
+                            variant="outlined" 
+                            color="error" 
+                            onClick={handleLimpiarFirmaCliente}
+                            sx={{ mt: 1 }}
+                          >
+                            Limpiar Firma
+                          </Button>
+                        </Box>
+                      ) : (
+                        <Box>
+                          <Box sx={{ 
+                            border: '2px dashed #ccc', 
+                            borderRadius: 2, 
+                            p: 1,
+                            backgroundColor: 'white'
+                          }}>
+                            <SignatureCanvas
+                              ref={firmaClienteRef}
+                              canvasProps={{
+                                width: 300,
+                                height: 150,
+                                style: { width: '100%', height: '150px' }
+                              }}
+                              backgroundColor="white"
+                            />
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'center' }}>
+                            <Button 
+                              variant="contained" 
+                              onClick={handleGuardarFirmaCliente}
+                              sx={{ backgroundColor: '#39A900', '&:hover': { backgroundColor: '#2d8000' } }}
+                            >
+                              Guardar Firma
+                            </Button>
+                            <Button 
+                              variant="outlined" 
+                              onClick={handleLimpiarFirmaCliente}
+                            >
+                              Limpiar
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Botones de acción */}
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 4 }}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={handleCompletarFirmas}
+                  disabled={!firmas.administrador || !firmas.cliente || isProcessing}
+                  startIcon={isProcessing ? <CircularProgress size={20} /> : null}
+                  sx={{ 
+                    px: 4, 
+                    py: 1.5,
+                    backgroundColor: '#39A900',
+                    '&:hover': { backgroundColor: '#2d8000' }
+                  }}
+                >
+                  {isProcessing ? 'Procesando...' : 'Completar Firma y Recibir Muestra'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleCerrarModalFirmas}
+                  disabled={isProcessing}
+                  sx={{ px: 4, py: 1.5 }}
+                >
+                  Cancelar
+                </Button>
+              </Box>
+            </Box>
+          </Fade>
+        </Modal>
         <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
           <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: "100%" }}>
             {snackbarMessage}
