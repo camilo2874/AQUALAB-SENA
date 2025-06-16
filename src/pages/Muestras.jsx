@@ -17,8 +17,7 @@ import {
   MenuItem,
   Button,
   Modal,
-  Box,
-  Typography,
+  Box,  Typography,
   IconButton,
   Checkbox,
   FormControlLabel,
@@ -43,6 +42,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ScienceIcon from '@mui/icons-material/Science';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import AuthContext from "../context/AuthContext";
 import { muestrasService } from "../services/muestras.service";
 
@@ -1285,13 +1285,32 @@ const Muestras = memo(() => {
           p: { xs: 2, md: 4 },
           position: 'relative',
         }}
-      >
-        {/* Encabezado con ícono */}
+      >        {/* Encabezado con ícono */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <ScienceIcon sx={{ fontSize: 40, color: '#39A900', mr: 2 }} />
           <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#39A900', flex: 1 }}>
             Muestras Registradas
-          </Typography>
+          </Typography>          <Tooltip title="Actualizar tabla" placement="left" arrow>
+            <IconButton
+              onClick={() => {
+                setLoading(true);
+                fetchMuestras(pagination.page, pagination.limit);
+              }}
+              sx={{
+                backgroundColor: '#39A900',
+                color: 'white',
+                borderRadius: 2,
+                p: 1.5,
+                '&:hover': {
+                  backgroundColor: '#2d8000',
+                  transform: 'scale(1.1)',
+                },
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
         {/* Cinta decorativa */}
         <Box sx={{ height: 6, width: 120, background: 'linear-gradient(90deg, #39A900 60%, #b2dfdb 100%)', borderRadius: 3, mb: 3 }} />

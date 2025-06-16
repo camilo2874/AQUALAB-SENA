@@ -43,6 +43,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
 import BadgeIcon from '@mui/icons-material/Badge';
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
 import SignatureCanvas from 'react-signature-canvas';
 import SignaturePad from '../components/SignaturePad';
 import FirmasDigitales from '../components/FirmasDigitales';
@@ -336,9 +337,10 @@ const RegistroMuestras: React.FC = () => {
   const [loadingAnalisis, setLoadingAnalisis] = useState(false);
   const [analisisError, setAnalisisError] = useState<string | null>(null);
   const [analisisSuccess, setAnalisisSuccess] = useState<string | null>(null);
-  const [editingAnalisis, setEditingAnalisis] = useState<AnalisisCategoria | null>(null);
-  const firmaAdministradorRef = useRef<SignatureCanvas | null>(null);
+  const [editingAnalisis, setEditingAnalisis] = useState<AnalisisCategoria | null>(null);  const [showAnalisisForm, setShowAnalisisForm] = useState<boolean>(false);  const firmaAdministradorRef = useRef<SignatureCanvas | null>(null);
   const firmaClienteRef = useRef<SignatureCanvas | null>(null);
+  const analisisFormRef = useRef<HTMLDivElement | null>(null);
+  const analisisModalRef = useRef<HTMLDivElement | null>(null);
   const debouncedDocumento = useDebouncedValue(formData.documento, 400);
 
   // Limpia solo campos de muestra
@@ -451,6 +453,19 @@ const RegistroMuestras: React.FC = () => {
       }
     };
     if (openAnalisisModal) cargarTodosAnalisis();
+  }, [openAnalisisModal]);
+
+  // Maneja el foco del modal de análisis para evitar errores de accesibilidad
+  useEffect(() => {
+    if (openAnalisisModal && analisisModalRef.current) {
+      // Pequeño delay para asegurar que el modal se haya renderizado completamente
+      const timer = setTimeout(() => {
+        if (analisisModalRef.current) {
+          analisisModalRef.current.focus();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
   }, [openAnalisisModal]);
 
   // Debounce para validación de usuario por documento
@@ -746,12 +761,77 @@ const RegistroMuestras: React.FC = () => {
       setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
+    }  };  const handleOpenAnalisisModal = () => {
+    // Remover el foco del elemento activo para evitar conflictos con aria-hidden
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement && activeElement.blur) {
+      activeElement.blur();
     }
+    
+    // Forzar que el foco se mueva al body temporalmente
+    document.body.focus();
+    
+    // Usar doble requestAnimationFrame para asegurar que todos los cambios de foco se procesen
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setOpenAnalisisModal(true);
+      });
+    });
+  };  const handleCloseAnalisisModal = () => {
+    setOpenAnalisisModal(false);
+    setNewAnalisisData(initialNewAnalisisData);
+    setAnalisisError(null);
+    setAnalisisSuccess(null);
+    setEditingAnalisis(null);
+    setShowAnalisisForm(false);
+    
+    // Restaurar el foco al elemento principal después de cerrar el modal
+    setTimeout(() => {
+      // Enfocar al elemento principal de la página o al primer elemento focusable
+      const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+      if (mainContent instanceof HTMLElement) {
+        mainContent.focus();
+      }
+    }, 100);
+  };const handleShowCreateForm = () => {
+    setShowAnalisisForm(true);
+    setEditingAnalisis(null);
+    setNewAnalisisData(initialNewAnalisisData);
+    setAnalisisError(null);
+    setAnalisisSuccess(null);
+    // Scroll automático al formulario después de que termine la animación
+    setTimeout(() => {
+      analisisFormRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }, 500);
+  };
+  const handleShowEditForm = (analisis: AnalisisCategoria) => {
+    setEditingAnalisis(analisis);    setNewAnalisisData({
+      nombre: analisis.nombre,
+      metodo: analisis.metodo || '',
+      unidad: analisis.unidad,
+      rango: analisis.rango || '',
+      precio: analisis.precio?.toString().replace(/[,.]/g, '') || '',
+      matriz: analisis.matriz || ['AP', 'AS'],
+      tipo: (analisis.tipo === 'Fisicoquímico' || analisis.tipo === 'Microbiológico') ? analisis.tipo : '',
+      activo: analisis.activo,
+    });setShowAnalisisForm(true);
+    setAnalisisError(null);
+    setAnalisisSuccess(null);
+    // Scroll automático al formulario después de que termine la animación
+    setTimeout(() => {
+      analisisFormRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }, 500);
   };
 
-  const handleOpenAnalisisModal = () => setOpenAnalisisModal(true);
-  const handleCloseAnalisisModal = () => {
-    setOpenAnalisisModal(false);
+  const handleCancelForm = () => {
+    setShowAnalisisForm(false);
+    setEditingAnalisis(null);
     setNewAnalisisData(initialNewAnalisisData);
     setAnalisisError(null);
     setAnalisisSuccess(null);
@@ -809,13 +889,12 @@ const RegistroMuestras: React.FC = () => {
       return;
     }
     setRegistrando(true);
-    try {
-      const analisisData = {
+    try {      const analisisData = {
         nombre: newAnalisisData.nombre,
         metodo: newAnalisisData.metodo,
         unidad: newAnalisisData.unidad,
         rango: newAnalisisData.rango,
-        precio: Number(newAnalisisData.precio),
+        precio: Number(newAnalisisData.precio.replace(/[,.]/g, '')),
         matriz: newAnalisisData.matriz,
         tipo: normalizeText(newAnalisisData.tipo), // Normalize tipo (e.g., "Fisicoquímico" -> "fisicoquimico")
         activo: newAnalisisData.activo,
@@ -852,20 +931,8 @@ const RegistroMuestras: React.FC = () => {
     } finally {
       setRegistrando(false);
     }
-  };
-  const handleEditAnalisis = (analisis: AnalisisCategoria) => {
-    setEditingAnalisis(analisis);
-    setNewAnalisisData({
-      nombre: analisis.nombre || '',
-      metodo: analisis.metodo || '',
-      unidad: analisis.unidad || '',
-      rango: analisis.rango || '',
-      precio: analisis.precio != null ? analisis.precio.toString() : '',
-      matriz: analisis.matriz || ['AP', 'AS'],
-      tipo: analisis.tipo ? (analisis.tipo.charAt(0).toUpperCase() + analisis.tipo.slice(1)) as TipoAnalisis : '',
-      activo: analisis.activo || true,
-    });
-    setOpenAnalisisModal(true);
+  };  const handleEditAnalisis = (analisis: AnalisisCategoria) => {
+    handleShowEditForm(analisis);
   };
   
   const handleUpdateAnalisis = async () => {
@@ -889,13 +956,12 @@ const RegistroMuestras: React.FC = () => {
       return;
     }
     setRegistrando(true);
-    try {
-      const analisisData = {
+    try {      const analisisData = {
         nombre: newAnalisisData.nombre,
         metodo: newAnalisisData.metodo,
         unidad: newAnalisisData.unidad,
         rango: newAnalisisData.rango,
-        precio: Number(newAnalisisData.precio),
+        precio: Number(newAnalisisData.precio.replace(/[,.]/g, '')),
         matriz: newAnalisisData.matriz,
         tipo: normalizeText(newAnalisisData.tipo),
         activo: newAnalisisData.activo,
@@ -1855,23 +1921,44 @@ const RegistroMuestras: React.FC = () => {
             </Button>
           )}
         </form>
-      </Paper>
-
-      {/* Botón Flotante para Gestionar Análisis */}
-      <Fab
-        color="primary"
-        onClick={handleOpenAnalisisModal}
-        sx={{
-          position: 'fixed',
-          bottom: 32,
-          right: 32,
-          bgcolor: '#39A900',
-          '&:hover': { bgcolor: '#2d8600', transform: 'scale(1.1)' },
-          transition: 'all 0.3s',
-        }}
-      >
-        <AddIcon />
-      </Fab>
+      </Paper>      {/* Botón para Gestionar Análisis */}
+      <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}>        <Fab
+          color="primary"
+          onClick={handleOpenAnalisisModal}
+          aria-label="Gestionar análisis"
+          role="button"
+          tabIndex={0}
+          sx={{
+            bgcolor: '#39A900',
+            color: 'white',
+            width: 64,
+            height: 64,
+            boxShadow: '0 4px 12px rgba(57, 169, 0, 0.3)',
+            '&:hover': { 
+              bgcolor: '#2d8600', 
+              transform: 'translateY(-2px) scale(1.05)', 
+              boxShadow: '0 6px 16px rgba(57, 169, 0, 0.4)' 
+            },
+            '&:focus': {
+              bgcolor: '#2d8600',
+              outline: '3px solid #39A900',
+              outlineOffset: 3,
+              transform: 'scale(1.05)',
+            },
+            '&:focus-visible': {
+              outline: '3px solid #39A900',
+              outlineOffset: 3,
+            },
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            // Asegurar que el botón no mantenga estilos de foco después del clic
+            '&:active': {
+              transform: 'scale(0.95)',
+            },
+          }}
+        >
+          <AddIcon sx={{ fontSize: 32 }} />
+        </Fab>
+      </Box>
 
       {/* Modal Registrar Cliente */}
       <Modal
@@ -2035,64 +2122,98 @@ const RegistroMuestras: React.FC = () => {
             </Button>
           </Box>
         </Fade>
-      </Modal>
-
-      {/* Modal Gestionar Análisis */}
-<Modal
-  open={openAnalisisModal}
-  onClose={() => {
-    setOpenAnalisisModal(false);
-    setNewAnalisisData(initialNewAnalisisData);
-    setAnalisisError(null);
-    setAnalisisSuccess(null);
-    setEditingAnalisis(null);
-  }}
-  closeAfterTransition
-  slots={{ backdrop: Backdrop }}
-  slotProps={{ backdrop: { timeout: 500 } }}
->
-  <Fade in={openAnalisisModal}>
+      </Modal>      {/* Modal Gestionar Análisis */}
+      <Modal
+        open={openAnalisisModal}
+        onClose={() => {
+          setOpenAnalisisModal(false);
+          setNewAnalisisData(initialNewAnalisisData);
+          setAnalisisError(null);
+          setAnalisisSuccess(null);
+          setEditingAnalisis(null);
+        }}
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{ backdrop: { timeout: 500 } }}
+      >
+        <Fade in={openAnalisisModal}>
     <Box
+      ref={analisisModalRef}
+      tabIndex={-1}
       sx={{
         position: 'absolute',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: 600,
+        width: '90vw',
+        maxWidth: 1200,
         bgcolor: 'background.paper',
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
         p: 4,
         borderRadius: 3,
         maxHeight: '90vh',
         overflowY: 'auto',
+        outline: 'none',
       }}
     >
-      <Typography
-        variant="h5"
-        gutterBottom
-        sx={{ fontWeight: 'bold', color: '#39A900', mb: 3 }}
-      >
-        Gestionar Análisis
-      </Typography>
+      {/* Header con título y botón cerrar */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography
+          variant="h5"
+          sx={{ fontWeight: 'bold', color: '#39A900' }}
+        >
+          Gestionar Análisis
+        </Typography>
+        <IconButton
+          onClick={handleCloseAnalisisModal}
+          sx={{
+            color: '#666',
+            '&:hover': {
+              color: '#e74c3c',
+              bgcolor: 'rgba(231, 76, 60, 0.1)',
+              transform: 'scale(1.1)',
+            },
+            transition: 'all 0.2s',
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </Box>
 
       {/* Lista de Análisis */}
-      <Typography variant="h6" sx={{ mb: 2, color: '#39A900' }}>
-        Lista de Análisis
-      </Typography>
-      {allAnalisis.length > 0 ? (
-        <TableContainer
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" sx={{ color: '#39A900' }}>
+          Lista de Análisis
+        </Typography>
+        {!showAnalisisForm && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleShowCreateForm}
+            sx={{
+              bgcolor: '#39A900',
+              '&:hover': { bgcolor: '#2d8600' },
+              borderRadius: 2,
+            }}
+          >
+            Nuevo Análisis
+          </Button>
+        )}
+      </Box>
+      
+      {allAnalisis.length > 0 ? (        <TableContainer
           component={Paper}
-          sx={{ mb: 4, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          sx={{ mb: showAnalisisForm ? 2 : 4, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
         >
-          <Table>
+          <Table sx={{ minWidth: 800 }}>
             <TableHead>
               <TableRow sx={{ bgcolor: '#39A900' }}>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nombre</TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Tipo</TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Unidad</TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Precio</TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Activo</TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Acciones</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 200 }}>Nombre</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 120 }}>Tipo</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 120 }}>Unidad</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 100 }}>Precio</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 80, textAlign: 'center' }}>Activo</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 'bold', minWidth: 100, textAlign: 'center' }}>Acciones</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -2101,18 +2222,17 @@ const RegistroMuestras: React.FC = () => {
                   <TableRow
                     key={analisis._id || analisis.nombre}
                     sx={{ '&:hover': { bgcolor: '#d7f7dd' } }}
-                  >
-                    <TableCell>{analisis.nombre || 'N/A'}</TableCell>
+                  >                    <TableCell sx={{ fontWeight: 500 }}>{analisis.nombre || 'N/A'}</TableCell>
                     <TableCell>
                       {analisis.tipo
                         ? analisis.tipo.charAt(0).toUpperCase() + analisis.tipo.slice(1)
                         : 'N/A'}
                     </TableCell>
                     <TableCell>{analisis.unidad || 'N/A'}</TableCell>
-                    <TableCell>
-                      {analisis.precio != null ? `$${analisis.precio}` : 'N/A'}
+                    <TableCell sx={{ fontWeight: 500, color: '#39A900' }}>
+                      {analisis.precio != null ? `$${analisis.precio.toLocaleString()}` : 'N/A'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ textAlign: 'center' }}>
                       <Switch
                         checked={analisis.activo || false}
                         onChange={() =>
@@ -2123,10 +2243,16 @@ const RegistroMuestras: React.FC = () => {
                         color="primary"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ textAlign: 'center' }}>
                       <IconButton
                         onClick={() => handleEditAnalisis(analisis)}
-                        sx={{ color: '#39A900' }}
+                        sx={{ 
+                          color: '#39A900',
+                          '&:hover': { 
+                            bgcolor: 'rgba(57, 169, 0, 0.1)',
+                            transform: 'scale(1.1)'
+                          }
+                        }}
                       >
                         <EditIcon />
                       </IconButton>
@@ -2138,15 +2264,39 @@ const RegistroMuestras: React.FC = () => {
           </Table>
         </TableContainer>
       ) : (
-        <Alert severity="info" sx={{ mb: 4, borderRadius: 2, boxShadow: 1 }}>
+        <Alert severity="info" sx={{ mb: showAnalisisForm ? 2 : 4, borderRadius: 2, boxShadow: 1 }}>
           No hay análisis disponibles
         </Alert>
-      )}
-
-      {/* Formulario para Nuevo/Editar Análisis */}
-      <Typography variant="h6" sx={{ mb: 2, color: '#39A900' }}>
-        {editingAnalisis ? 'Editar Análisis' : 'Agregar Nuevo Análisis'}
-      </Typography>
+      )}      {/* Formulario para Nuevo/Editar Análisis - Solo se muestra cuando es necesario */}
+      {showAnalisisForm && (
+        <Fade in={showAnalisisForm}>
+          <Paper 
+            ref={analisisFormRef}
+            elevation={3} 
+            sx={{ 
+              p: 3, 
+              borderRadius: 3, 
+              bgcolor: '#f8f9fa',
+              border: '2px solid #39A900',
+              mb: 2
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6" sx={{ color: '#39A900', fontWeight: 'bold' }}>
+                {editingAnalisis ? 'Editar Análisis' : 'Nuevo Análisis'}
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={handleCancelForm}
+                sx={{
+                  borderColor: '#39A900',
+                  color: '#39A900',
+                  '&:hover': { borderColor: '#2d8600', color: '#2d8600' },
+                }}
+              >
+                Cancelar
+              </Button>
+            </Box>
       <TextField
         fullWidth
         label="Nombre"
@@ -2182,15 +2332,18 @@ const RegistroMuestras: React.FC = () => {
         onChange={handleNewAnalisisChange}
         required
         sx={{ mb: 3, bgcolor: 'white', borderRadius: 2 }}
-      />
-      <TextField
+      />      <TextField
         fullWidth
-        label="Precio"
+        label="Precio (ej: 35500 o 35.500)"
         name="precio"
-        type="number"
         value={newAnalisisData.precio}
         onChange={handleNewAnalisisChange}
         required
+        placeholder="Ejemplo: 35500"
+        inputProps={{
+          inputMode: 'numeric',
+          pattern: '[0-9.]*'
+        }}
         sx={{ mb: 3, bgcolor: 'white', borderRadius: 2 }}
       />
       <FormControl fullWidth sx={{ mb: 3 }}>
@@ -2232,8 +2385,7 @@ const RegistroMuestras: React.FC = () => {
         <Alert severity="success" sx={{ mb: 3, borderRadius: 2, boxShadow: 1 }}>
           {analisisSuccess}
         </Alert>
-      )}
-      <Button
+      )}      <Button
         variant="contained"
         fullWidth
         onClick={editingAnalisis ? handleUpdateAnalisis : handleCreateAnalisis}
@@ -2257,18 +2409,12 @@ const RegistroMuestras: React.FC = () => {
           'Crear Análisis'
         )}
       </Button>
-      {editingAnalisis && (
+      <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
         <Button
           variant="outlined"
           fullWidth
-          onClick={() => {
-            setNewAnalisisData(initialNewAnalisisData);
-            setEditingAnalisis(null);
-            setAnalisisError(null);
-            setAnalisisSuccess(null);
-          }}
+          onClick={handleCancelForm}
           sx={{
-            mt: 2,
             borderRadius: 2,
             borderColor: '#39A900',
             color: '#39A900',
@@ -2280,13 +2426,40 @@ const RegistroMuestras: React.FC = () => {
             },
           }}
         >
-          Cancelar Edición
+          Cancelar
         </Button>
+      </Box>          </Paper>
+        </Fade>
       )}
+      
+      {/* Botón de cerrar del modal */}
+      {!showAnalisisForm && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <Button
+            variant="outlined"
+            onClick={handleCloseAnalisisModal}
+            sx={{
+              px: 4,
+              py: 1.5,
+              borderRadius: 2,
+              borderColor: '#39A900',
+              color: '#39A900',
+              '&:hover': {
+                borderColor: '#2d8600',
+                color: '#2d8600',
+                bgcolor: 'rgba(57, 169, 0, 0.05)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+              },
+              transition: 'all 0.2s',
+            }}
+          >
+            Cerrar
+          </Button>        </Box>
+      )}        </Box>
+        </Fade>
+      </Modal>
     </Box>
-  </Fade>
-  </Modal>
-</Box>
   );
 };
 

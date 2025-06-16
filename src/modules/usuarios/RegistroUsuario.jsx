@@ -33,11 +33,15 @@ const RegistroUsuario = () => {
     especialidad: "",
     codigoSeguridad: "",
     razonSocial: ""
-  });
-  const [cargando, setCargando] = useState(false);
+  });  const [cargando, setCargando] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
+  const [errores, setErrores] = useState({
+    nombre: "",
+    documento: "",
+    telefono: ""
+  });
 
   // Definir las opciones de rol según el rol del usuario logueado
   let allowedOptions = [];
@@ -48,13 +52,63 @@ const RegistroUsuario = () => {
       { value: "cliente", label: "Cliente" },
       { value: "laboratorista", label: "Laboratorista" }
     ];
-  }
-
-  // Manejar cambios en los campos del formulario
+  }  // Manejar cambios en los campos del formulario
   const manejarCambio = (e) => {
     const { name, value } = e.target;
-    setUsuario({ ...usuario, [name]: value });
+    
+    // Si se selecciona "persona natural" como tipo de cliente, limpiar razón social
+    if (name === "tipo_cliente" && value === "persona natural") {
+      setUsuario({ ...usuario, [name]: value, razonSocial: "" });
+    } else {
+      setUsuario({ ...usuario, [name]: value });
+    }
+    
     setSnackbarOpen(false);
+  };
+
+  // Función para manejar solo letras en el nombre
+  const manejarCambioNombre = (e) => {
+    const { value } = e.target;
+    const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]*$/;
+    
+    if (soloLetras.test(value) || value === "") {
+      setUsuario({ ...usuario, nombre: value });
+      setErrores({ ...errores, nombre: "" });
+      setSnackbarOpen(false);
+    } else {
+      setErrores({ ...errores, nombre: "⚠ El nombre solo puede contener letras y espacios" });
+    }
+  };
+
+  // Función para manejar solo números en documento (máximo 15)
+  const manejarCambioDocumento = (e) => {
+    const { value } = e.target;
+    const soloNumeros = /^\d*$/;
+    
+    if (soloNumeros.test(value) && value.length <= 15) {
+      setUsuario({ ...usuario, documento: value });
+      setErrores({ ...errores, documento: "" });
+      setSnackbarOpen(false);
+    } else if (value.length > 15) {
+      setErrores({ ...errores, documento: "⚠ El documento no puede tener más de 15 dígitos" });
+    } else {
+      setErrores({ ...errores, documento: "⚠ El documento solo puede contener números" });
+    }
+  };
+  // Función para manejar solo números en teléfono
+  const manejarCambioTelefono = (e) => {
+    const { value } = e.target;
+    const soloNumeros = /^\d*$/;
+    
+    if (soloNumeros.test(value) && value.length <= 10) {
+      setUsuario({ ...usuario, telefono: value });
+      setErrores({ ...errores, telefono: "" });
+      setSnackbarOpen(false);
+    } else if (value.length > 10) {
+      setErrores({ ...errores, telefono: "⚠ El teléfono no puede tener más de 10 dígitos" });
+    } else {
+      setErrores({ ...errores, telefono: "⚠ El teléfono solo puede contener números" });
+    }
   };
 
   const handleSnackbarClose = (event, reason) => {
@@ -80,9 +134,7 @@ const RegistroUsuario = () => {
     // **IMPORTANTE:** Para clientes no se debe asignar la contraseña en el front,
     // es decir, no se ejecuta:
     // if (usuario.tipo === "cliente") { usuario.password = usuario.documento; }
-    // De esta forma, el objeto "usuario" se mantiene sin la propiedad "password"
-
-    // Validación de campos obligatorios
+    // De esta forma, el objeto "usuario" se mantiene sin la propiedad "password"    // Validación de campos obligatorios
     if (
       !usuario.tipo ||
       !usuario.nombre ||
@@ -91,7 +143,8 @@ const RegistroUsuario = () => {
       !usuario.direccion ||
       !usuario.email ||
       (usuario.tipo !== "cliente" && !usuario.password) ||
-      (usuario.tipo === "cliente" && (!usuario.tipo_cliente || !usuario.razonSocial))
+      (usuario.tipo === "cliente" && !usuario.tipo_cliente) ||
+      (usuario.tipo === "cliente" && usuario.tipo_cliente !== "persona natural" && !usuario.razonSocial)
     ) {
       setSnackbarMessage("⚠ Todos los campos obligatorios deben completarse.");
       setSnackbarSeverity("error");
@@ -190,8 +243,7 @@ const RegistroUsuario = () => {
       console.log("✔ Registro exitoso:", respuesta.data);
       setSnackbarMessage("✔ Usuario registrado correctamente.");
       setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-      setUsuario({
+      setSnackbarOpen(true);      setUsuario({
         tipo: "",
         nombre: "",
         documento: "",
@@ -203,6 +255,11 @@ const RegistroUsuario = () => {
         especialidad: "",
         codigoSeguridad: "",
         razonSocial: ""
+      });
+      setErrores({
+        nombre: "",
+        documento: "",
+        telefono: ""
       });
       setTimeout(() => navigate("/users"), 2000);
     } catch (error) {
@@ -279,33 +336,55 @@ const RegistroUsuario = () => {
                 {option.label}
               </MenuItem>
             ))}
-          </Select>
-
-          <TextField
+          </Select>          <TextField
             label="Nombre Completo"
             name="nombre"
             value={usuario.nombre}
-            onChange={manejarCambio}
+            onChange={manejarCambioNombre}
+            onKeyPress={(e) => {
+              const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]*$/;
+              if (!soloLetras.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
             fullWidth
             required
+            error={!!errores.nombre}
+            helperText={errores.nombre}
             sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
-          />
-          <TextField
+          />          <TextField
             label="Documento"
             name="documento"
             value={usuario.documento}
-            onChange={manejarCambio}
+            onChange={manejarCambioDocumento}
+            onKeyPress={(e) => {
+              const soloNumeros = /^\d$/;
+              if (!soloNumeros.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
             fullWidth
             required
+            error={!!errores.documento}
+            helperText={errores.documento}
+            inputProps={{ maxLength: 15 }}
             sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
-          />
-          <TextField
+          />          <TextField
             label="Teléfono"
             name="telefono"
             value={usuario.telefono}
-            onChange={manejarCambio}
+            onChange={manejarCambioTelefono}
+            onKeyPress={(e) => {
+              const soloNumeros = /^\d$/;
+              if (!soloNumeros.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
             fullWidth
             required
+            error={!!errores.telefono}
+            helperText={errores.telefono}
+            inputProps={{ maxLength: 10 }}
             sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
           />
           <TextField
@@ -326,9 +405,7 @@ const RegistroUsuario = () => {
             fullWidth
             required
             sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
-          />
-
-          {/* Mostrar campo de contraseña solo para tipos que no sean cliente */}
+          />          {/* Mostrar campo de contraseña solo para tipos que no sean cliente */}
           {usuario.tipo !== "cliente" && (
             <TextField
               label="Contraseña"
@@ -338,11 +415,10 @@ const RegistroUsuario = () => {
               onChange={manejarCambio}
               fullWidth
               required
+              helperText="Mínimo 8 caracteres, incluir: mayúscula, número y carácter especial"
               sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
             />
-          )}
-
-          {/* Campos específicos para clientes */}
+          )}          {/* Campos específicos para clientes */}
           {usuario.tipo === "cliente" && (
             <>
               <Select
@@ -363,15 +439,17 @@ const RegistroUsuario = () => {
                 <MenuItem value="institucion educativa">institucion educativa</MenuItem>
                 <MenuItem value="aprendiz/instructor Sena">aprendiz/instructor Sena</MenuItem>
               </Select>
-              <TextField
-                label="Razón Social"
-                name="razonSocial"
-                value={usuario.razonSocial}
-                onChange={manejarCambio}
-                fullWidth
-                required
-                sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
-              />
+              {usuario.tipo_cliente !== "persona natural" && (
+                <TextField
+                  label="Razón Social"
+                  name="razonSocial"
+                  value={usuario.razonSocial}
+                  onChange={manejarCambio}
+                  fullWidth
+                  required
+                  sx={{ mb: 2, background: 'white', borderRadius: 2, boxShadow: 1 }}
+                />
+              )}
             </>
           )}
 
