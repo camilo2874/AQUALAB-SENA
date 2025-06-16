@@ -580,10 +580,9 @@ const RegistroMuestras: React.FC = () => {
 
   const handlePageChange = useCallback((_: React.ChangeEvent<unknown>, value: number) => {
     setPagination(prev => ({ ...prev, page: value }));
-  }, []);
-  // Eliminar logs innecesarios en producción
+  }, []);  // Eliminar logs innecesarios en producción
   useEffect(() => {
-    if (import.meta.env.MODE === 'production') {
+    if (process.env.NODE_ENV === 'production') {
       // eslint-disable-next-line no-console
       console.log = () => {};
       // eslint-disable-next-line no-console
