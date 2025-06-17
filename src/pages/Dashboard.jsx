@@ -141,21 +141,21 @@ const StatCard = ({ title, value, icon, color }) => (
 );
 
 // Componente para los gráficos
-const SampleCharts = ({ sampleStats, waterTypeStats, userTypeStats, allMuestras }) => {
-  // Gráfico de Dona 1: Distribución de Muestras (Recibidas, En Cotización, En análisis, Rechazada, Finalizadas)
+const SampleCharts = ({ sampleStats, waterTypeStats, userTypeStats, allMuestras }) => {  // Gráfico de Dona 1: Distribución de Muestras (Recibidas, En Cotización, Aceptadas, En análisis, Rechazada, Finalizadas)
   const distributionData = {
     labels: [
       "Muestras Recibidas",
       "Muestras en Cotización",
+      "Muestras Aceptadas",
       "Muestras en Análisis",
       "Muestras Rechazadas",
       "Finalizadas"
     ],
     datasets: [
-      {
-        data: [
+      {        data: [
           allMuestras.filter(s => s.estado === "Recibida").length, // Recibidas
-          allMuestras.filter(s => s.estado === "En Cotizacion").length, // En Cotización
+          allMuestras.filter(s => s.estado === "En Cotización" || s.estado === "En Cotizacion").length, // En Cotización
+          allMuestras.filter(s => s.estado === "Aceptada").length, // Aceptadas
           allMuestras.filter(s => s.estado === "En análisis").length, // En Análisis
           allMuestras.filter(s => s.estado === "Rechazada").length, // Rechazadas
           allMuestras.filter(s => s.estado === "Finalizada").length // Finalizadas
@@ -163,6 +163,7 @@ const SampleCharts = ({ sampleStats, waterTypeStats, userTypeStats, allMuestras 
         backgroundColor: [
           "#2196F3", // Recibidas
           "#00B8D4", // En Cotización
+          "#FF9800", // Aceptadas
           "#39A900", // En Análisis
           "#D32F2F", // Rechazadas
           "#2E7D32"  // Finalizadas
@@ -170,6 +171,7 @@ const SampleCharts = ({ sampleStats, waterTypeStats, userTypeStats, allMuestras 
         hoverBackgroundColor: [
           "#1976D2",
           "#00838F",
+          "#F57C00",
           "#2D8A00",
           "#C62828",
           "#1B5E20"
@@ -577,20 +579,24 @@ const Dashboard = () => {
   const [userError, setUserError] = useState(null);
 
   // Nuevo estado para todas las muestras
-  const [allMuestras, setAllMuestras] = useState([]);
-  // Memoizar datos de tarjetas y clientes para evitar renders innecesarios y conflictos de nombres
+  const [allMuestras, setAllMuestras] = useState([]);  // Memoizar datos de tarjetas y clientes para evitar renders innecesarios y conflictos de nombres
   const statCardData = useMemo(() => [
     {
       title: "Muestras Recibidas",
       value: allMuestras.filter(s => s.estado === "Recibida").length,
       icon: <AssignmentIcon sx={{ fontSize: 40 }} />,
       color: "#2196F3"
-    },
-    {
+    },    {
       title: "Muestras en Cotización",
-      value: allMuestras.filter(s => s.estado === "En Cotizacion").length,
+      value: allMuestras.filter(s => s.estado === "En Cotización" || s.estado === "En Cotizacion").length,
       icon: <AssignmentIcon sx={{ fontSize: 40 }} />,
       color: "#00B8D4"
+    },
+    {
+      title: "Muestras Aceptadas",
+      value: allMuestras.filter(s => s.estado === "Aceptada").length,
+      icon: <AssignmentIcon sx={{ fontSize: 40 }} />,
+      color: "#FF9800"
     },
     {
       title: "Muestras en Análisis",
@@ -922,6 +928,7 @@ const Dashboard = () => {
       labels: [
         "Muestras Recibidas",
         "Muestras en Cotización",
+        "Muestras Aceptadas",
         "Muestras en Análisis",
         "Muestras Rechazadas",
         "Finalizadas"
@@ -930,7 +937,8 @@ const Dashboard = () => {
         {
           data: [
             allMuestras.filter(s => s.estado === "Recibida").length,
-            allMuestras.filter(s => s.estado === "En Cotizacion").length,
+            allMuestras.filter(s => s.estado === "En Cotización" || s.estado === "En Cotizacion").length,
+            allMuestras.filter(s => s.estado === "Aceptada").length,
             allMuestras.filter(s => s.estado === "En análisis").length,
             allMuestras.filter(s => s.estado === "Rechazada").length,
             allMuestras.filter(s => s.estado === "Finalizada").length
@@ -938,6 +946,7 @@ const Dashboard = () => {
           backgroundColor: [
             "#2196F3", // Recibidas
             "#00B8D4", // En Cotización
+            "#FF9800", // Aceptadas
             "#39A900", // En Análisis
             "#D32F2F", // Rechazadas
             "#2E7D32"  // Finalizadas
@@ -1116,13 +1125,12 @@ const Dashboard = () => {
     // Marcos con mejor espaciado
     doc.rect(chartX1 - 5, chartY - 5, chartW + 10, chartH + 10, 'S');
     doc.rect(chartX2 - 5, chartY - 5, chartW + 10, chartH + 10, 'S');
-    
-    doc.addImage(aguaImg, 'PNG', chartX1, chartY, chartW, chartH);
+      doc.addImage(aguaImg, 'PNG', chartX1, chartY, chartW, chartH);
     doc.addImage(userImg, 'PNG', chartX2, chartY, chartW, chartH);
-    y = chartY + chartH + 30; // Más espacio después de gráficos    // Verificar si necesitamos una nueva página - más flexible
+    y = chartY + chartH + 60; // Aumentar significativamente el espacio después de gráficos// Verificar si necesitamos una nueva página - más flexible
     if (y > pageHeight - 280) {
       doc.addPage();
-      y = 40; // Más espacio en nueva página
+      y = 80; // Aumentar más el espacio en nueva página para bajar aún más el título
     }
     
     // Sección de datos detallados con mejor espaciado
@@ -1130,17 +1138,15 @@ const Dashboard = () => {
     doc.setTextColor(57, 169, 0);
     doc.setFont(undefined, 'bold');
     doc.text("DATOS DETALLADOS DEL SISTEMA", pageWidth / 2, y, { align: "center" });
-    y += 25; // Más espacio
-
-    // 1. Distribución de Muestras con mejor espaciado
-    doc.setFontSize(12);
-    doc.setTextColor(25, 118, 210);
-    doc.setFont(undefined, 'bold');
-    doc.text("Distribución de Muestras por Estado", 40, y);
-    y += 18;
-    
-    const muestrasRecibidas = allMuestras.filter(s => s.estado === "Recibida").length;
-    const muestrasCotizacion = allMuestras.filter(s => s.estado === "En Cotizacion").length;
+    y += 35; // Aumentar espacio después del título// 1. Distribución de Muestras con mejor espaciado
+    // doc.setFontSize(12);
+    // doc.setTextColor(25, 118, 210);
+    // doc.setFont(undefined, 'bold');
+    // doc.text("Distribución de Muestras por Estado", 40, y);
+    // y += 18;
+      const muestrasRecibidas = allMuestras.filter(s => s.estado === "Recibida").length;
+    const muestrasCotizacion = allMuestras.filter(s => s.estado === "En Cotización" || s.estado === "En Cotizacion").length;
+    const muestrasAceptadas = allMuestras.filter(s => s.estado === "Aceptada").length;
     const muestrasAnalisis = allMuestras.filter(s => s.estado === "En análisis").length;
     const muestrasRechazadas = allMuestras.filter(s => s.estado === "Rechazada").length;
     const muestrasFinalizadas = allMuestras.filter(s => s.estado === "Finalizada").length;    autoTable(doc, {
@@ -1149,6 +1155,7 @@ const Dashboard = () => {
       body: [
         ["Recibidas", muestrasRecibidas, `${((muestrasRecibidas/allMuestras.length)*100).toFixed(1)}%`],
         ["En Cotización", muestrasCotizacion, `${((muestrasCotizacion/allMuestras.length)*100).toFixed(1)}%`],
+        ["Aceptadas", muestrasAceptadas, `${((muestrasAceptadas/allMuestras.length)*100).toFixed(1)}%`],
         ["En Análisis", muestrasAnalisis, `${((muestrasAnalisis/allMuestras.length)*100).toFixed(1)}%`],
         ["Rechazadas", muestrasRechazadas, `${((muestrasRechazadas/allMuestras.length)*100).toFixed(1)}%`],
         ["Finalizadas", muestrasFinalizadas, `${((muestrasFinalizadas/allMuestras.length)*100).toFixed(1)}%`],
@@ -1172,14 +1179,13 @@ const Dashboard = () => {
         2: { halign: 'center', fontStyle: 'bold' }
       },
       margin: { left: 40, right: 40 },
-      tableWidth: 'auto',
-    });
-    y = doc.lastAutoTable.finalY + 20; // Más espacio entre tablas    // 2. Muestras por Tipo de Análisis con mejor espaciado
-    doc.setFontSize(12);
-    doc.setTextColor(255, 99, 132);
-    doc.setFont(undefined, 'bold');
-    doc.text("Análisis por Tipo", 40, y);
-    y += 18;
+      tableWidth: 'auto',    });
+    y = doc.lastAutoTable.finalY + 100; // Aumentar más el espacio para que el título baje más en la segunda página    // 2. Muestras por Tipo de Análisis con mejor espaciado
+    // doc.setFontSize(12);
+    // doc.setTextColor(255, 99, 132);
+    // doc.setFont(undefined, 'bold');
+    // doc.text("Análisis por Tipo", 40, y);
+    // y += 18;
     
     const totalAnalisis = sampleStats.microbiologicalSamples + sampleStats.physicochemicalSamples;    autoTable(doc, {
       startY: y,
@@ -1209,14 +1215,12 @@ const Dashboard = () => {
       margin: { left: 40, right: 40 },
       tableWidth: 'auto',
     });
-    y = doc.lastAutoTable.finalY + 20;
-
-    // 3. Muestras por Tipo de Agua con mejor espaciado
-    doc.setFontSize(12);
-    doc.setTextColor(67, 160, 71);
-    doc.setFont(undefined, 'bold');
-    doc.text("Tipo de Agua", 40, y);
-    y += 18;
+    y = doc.lastAutoTable.finalY + 20;    // 3. Muestras por Tipo de Agua con mejor espaciado
+    // doc.setFontSize(12);
+    // doc.setTextColor(67, 160, 71);
+    // doc.setFont(undefined, 'bold');
+    // doc.text("Tipo de Agua", 40, y);
+    // y += 18;
     
     const totalAgua = waterTypeStats.potable + waterTypeStats.natural + waterTypeStats.residual + waterTypeStats.otra;    autoTable(doc, {
       startY: y,
@@ -1252,14 +1256,12 @@ const Dashboard = () => {
     if (y > pageHeight - 180) {
       doc.addPage();
       y = 40;
-    }
-
-    // 4. Usuarios por Rol con mejor espaciado
-    doc.setFontSize(12);
-    doc.setTextColor(33, 150, 243);
-    doc.setFont(undefined, 'bold');
-    doc.text("Usuarios por Rol", 40, y);
-    y += 18;
+    }    // 4. Usuarios por Rol con mejor espaciado
+    // doc.setFontSize(12);
+    // doc.setTextColor(33, 150, 243);
+    // doc.setFont(undefined, 'bold');
+    // doc.text("Usuarios por Rol", 40, y);
+    // y += 18;
     
     autoTable(doc, {
       startY: y,
@@ -1290,14 +1292,12 @@ const Dashboard = () => {
       margin: { left: 40, right: 40 },
       tableWidth: 'auto',
     });
-    y = doc.lastAutoTable.finalY + 20;
-
-    // 5. Clientes por Tipo con mejor espaciado
-    doc.setFontSize(12);
-    doc.setTextColor(142, 36, 170);
-    doc.setFont(undefined, 'bold');
-    doc.text("Clientes por Tipo", 40, y);
-    y += 18;
+    y = doc.lastAutoTable.finalY + 20;    // 5. Clientes por Tipo con mejor espaciado
+    // doc.setFontSize(12);
+    // doc.setTextColor(142, 36, 170);
+    // doc.setFont(undefined, 'bold');
+    // doc.text("Clientes por Tipo", 40, y);
+    // y += 18;
     
     const totalClientes = Object.values(userStats.clientsByType).reduce((sum, val) => sum + val, 0);    autoTable(doc, {
       startY: y,
@@ -1427,15 +1427,13 @@ const Dashboard = () => {
         </Box>
       </motion.div>
 
-      {(sampleError || userError) && renderError()}
-
-      <motion.div
+      {(sampleError || userError) && renderError()}      <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.2 }}
       >
-        <Grid container spacing={3} sx={{ mb: 5 }}>
-          {statCardData.map((card, idx) => (
+        <Grid container spacing={3} sx={{ mb: 3 }}>
+          {statCardData.slice(0, 6).map((card, idx) => (
             <Grid item xs={12} sm={6} lg={4} key={idx}>
               <StatCard
                 title={card.title}
@@ -1445,6 +1443,101 @@ const Dashboard = () => {
               />
             </Grid>
           ))}
+        </Grid>
+        
+        {/* Tarjeta Total de Muestras - Ancho completo y más delgada */}
+        <Grid container spacing={3} sx={{ mb: 5 }}>
+          <Grid item xs={12}>
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              whileHover={{ y: -4, scale: 1.01 }}
+            >
+              <Paper
+                elevation={6}
+                sx={{
+                  p: 2,
+                  textAlign: "center",
+                  borderRadius: 4,
+                  background: `linear-gradient(135deg, #6C63FF15 0%, #ffffff 50%, #6C63FF08 100%)`,
+                  boxShadow: `0 8px 32px rgba(0,0,0,0.12), 0 2px 16px #6C63FF25`,
+                  transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                  border: `1px solid #6C63FF20`,
+                  position: "relative",
+                  overflow: "hidden",
+                  minHeight: 100,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  "&:hover": { 
+                    transform: "translateY(-4px) scale(1.01)",
+                    boxShadow: `0 16px 48px rgba(0,0,0,0.18), 0 8px 24px #6C63FF35`,
+                    "& .stat-icon": {
+                      transform: "scale(1.2) rotate(5deg)",
+                      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.2))"
+                    },
+                    "& .stat-value": {
+                      transform: "scale(1.1)"
+                    }
+                  },
+                  "&::before": {
+                    content: '""',
+                    position: "absolute",
+                    top: 0,
+                    left: "-100%",
+                    width: "100%",
+                    height: "100%",
+                    background: `linear-gradient(90deg, transparent, #6C63FF10, transparent)`,
+                    transition: "left 0.5s",
+                  },
+                  "&:hover::before": {
+                    left: "100%"
+                  }
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <Box 
+                    className="stat-icon"
+                    sx={{ 
+                      color: "#6C63FF", 
+                      transition: "all 0.3s ease",
+                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                    }}
+                  >
+                    <AssignmentIcon sx={{ fontSize: 48 }} />
+                  </Box>
+                  <Box>
+                    <Typography 
+                      variant="h6" 
+                      color="text.secondary" 
+                      sx={{ 
+                        fontWeight: 600,
+                        fontSize: { xs: '1.1rem', md: '1.3rem' },
+                        letterSpacing: 0.5,
+                        mb: 0.5
+                      }}
+                    >
+                      Total de Muestras
+                    </Typography>
+                    <Typography 
+                      variant="h3" 
+                      className="stat-value"
+                      sx={{ 
+                        color: "#6C63FF", 
+                        fontWeight: 700,
+                        fontSize: { xs: '2.5rem', md: '3rem' },
+                        transition: "all 0.3s ease",
+                        textShadow: `0 2px 4px #6C63FF20`
+                      }}
+                    >
+                      <CountUp end={statCardData[6].value} duration={2.5} separator="," />
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            </motion.div>
+          </Grid>
         </Grid>
       </motion.div>
 
@@ -1528,30 +1621,115 @@ const Dashboard = () => {
                 icon={<PeopleIcon sx={{ fontSize: 48 }} />}
                 color="#2196F3"
               />
-            </Grid>
-            <Grid item xs={12}>
+            </Grid>            <Grid item xs={12}>
               <Typography 
-                variant="h5"
+                variant="h6"
                 align="center"
                 sx={{
-                  fontWeight: 700,
-                  letterSpacing: 1.5,
-                  mt: 4,
-                  mb: 3,
+                  fontWeight: 600,
+                  letterSpacing: 1,
+                  mt: 3,
+                  mb: 2,
                   background: "linear-gradient(135deg, #43A047 0%, #2E7D32 100%)",
                   backgroundClip: "text",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   textTransform: 'uppercase',
-                  fontSize: { xs: '1.2rem', md: '1.5rem' },
+                  fontSize: { xs: '1rem', md: '1.2rem' },
                 }}
               >
                 Clientes por tipo
               </Typography>
-              <Grid container spacing={3} justifyContent="center">
+              <Grid container spacing={1} justifyContent="center">
                 {clientTypeCardData.map((card, idx) => (
-                  <Grid item xs={12} sm={6} md={2.4} key={card.title}>
-                    <StatCard {...card} />
+                  <Grid item xs={6} sm={3} md={2.4} key={card.title}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      whileHover={{ y: -2, scale: 1.01 }}
+                    >
+                      <Paper
+                        elevation={3}
+                        sx={{
+                          p: 1,
+                          textAlign: "center",
+                          borderRadius: 2,
+                          background: `linear-gradient(135deg, ${card.color}10 0%, #ffffff 50%, ${card.color}05 100%)`,
+                          boxShadow: `0 3px 12px rgba(0,0,0,0.08), 0 1px 6px ${card.color}15`,
+                          transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                          border: `1px solid ${card.color}15`,
+                          position: "relative",
+                          overflow: "hidden",
+                          minHeight: 70,
+                          maxHeight: 70,
+                          "&:hover": { 
+                            transform: "translateY(-2px) scale(1.01)",
+                            boxShadow: `0 6px 18px rgba(0,0,0,0.12), 0 3px 9px ${card.color}25`,
+                            "& .stat-icon": {
+                              transform: "scale(1.1)",
+                              filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                            },
+                            "& .stat-value": {
+                              transform: "scale(1.02)"
+                            }
+                          },
+                          "&::before": {
+                            content: '""',
+                            position: "absolute",
+                            top: 0,
+                            left: "-100%",
+                            width: "100%",
+                            height: "100%",
+                            background: `linear-gradient(90deg, transparent, ${card.color}05, transparent)`,
+                            transition: "left 0.4s",
+                          },
+                          "&:hover::before": {
+                            left: "100%"
+                          }
+                        }}
+                      >
+                        <Box 
+                          className="stat-icon"
+                          sx={{ 
+                            mb: 0.5,
+                            color: card.color, 
+                            transition: "all 0.3s ease",
+                            filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.1))"
+                          }}
+                        >
+                          {React.cloneElement(card.icon, { sx: { fontSize: 20 } })}
+                        </Box>
+                        <Typography 
+                          variant="caption"
+                          color="text.secondary" 
+                          sx={{ 
+                            fontWeight: 500,
+                            fontSize: { xs: '0.65rem', md: '0.7rem' },
+                            letterSpacing: 0.2,
+                            lineHeight: 1.1,
+                            display: 'block',
+                            mb: 0.3
+                          }}
+                        >
+                          {card.title}
+                        </Typography>
+                        <Typography 
+                          variant="h6"
+                          className="stat-value"
+                          sx={{ 
+                            color: card.color, 
+                            fontWeight: 700,
+                            fontSize: { xs: '1rem', md: '1.1rem' },
+                            transition: "all 0.3s ease",
+                            textShadow: `0 1px 2px ${card.color}10`,
+                            lineHeight: 1
+                          }}
+                        >
+                          <CountUp end={card.value} duration={2.5} separator="," />
+                        </Typography>
+                      </Paper>
+                    </motion.div>
                   </Grid>
                 ))}
               </Grid>
