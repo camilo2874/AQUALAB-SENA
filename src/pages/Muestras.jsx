@@ -43,8 +43,10 @@ import AssignmentIcon from "@mui/icons-material/Assignment";
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ScienceIcon from '@mui/icons-material/Science';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CloseIcon from '@mui/icons-material/Close';
 import AuthContext from "../context/AuthContext";
 import { muestrasService } from "../services/muestras.service";
+import { cambiosEstadoService } from "../services/cambiosEstado.service";
 
 // ----- URLs para las peticiones -----
 const BASE_URLS = {
@@ -191,7 +193,8 @@ const getEstadoChipProps = (estado) => {
       return { chipColor: "error", sx: { backgroundColor: "#F44336", color: "white" } };
     case "En Cotización":
     case "En Cotizacion": // Cubrimos ambas versiones
-      return { chipColor: "secondary", sx: { backgroundColor: "#9C27B0", color: "white" } };
+      return { chipColor: "secondary", sx: { backgroundColor: "#9C27B0", color: "white" } };    case "Aceptada":
+      return { chipColor: "info", sx: { backgroundColor: "#FF9800", color: "white" } };
     default:
       return { chipColor: "default", sx: { backgroundColor: "#666", color: "white" } };
   }
@@ -209,27 +212,21 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
     } catch (error) {
       console.error("Error al ver PDF:", error);
     }
-  };
-  const handleAceptarCotizacion = async () => {
+  };  const handleAceptarCotizacion = async () => {
     if (!selectedMuestra || isProcessing) return;
     
     setIsProcessing(true);
     try {
       const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
       
-      // Actualizar la muestra para marcar como aceptada
-      const datosActualizacion = {
-        cotizacionAceptada: true,
-        observaciones: (selectedMuestra.observaciones || '') + '\n[SISTEMA] Cotización aceptada por el cliente'
-      };
-
-      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
+      // Usar el servicio de cambios de estado para aceptar la cotización
+      const response = await cambiosEstadoService.aceptarCotizacion(idMuestra);
       
-      // Actualizar la muestra local
+      // Actualizar la muestra local con los datos de la respuesta
       const muestraActualizada = {
         ...selectedMuestra,
-        cotizacionAceptada: true,
-        observaciones: datosActualizacion.observaciones
+        estado: "Aceptada",
+        historialEstados: response.muestra?.historialEstados || selectedMuestra.historialEstados
       };
       
       onEstadoChange(muestraActualizada);
@@ -240,11 +237,15 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
     } finally {
       setIsProcessing(false);
     }
-  };
-  const handleRechazarCotizacion = async () => {
+  };  const handleRechazarCotizacion = async () => {
     if (!selectedMuestra || isProcessing) return;
     
-    const confirmacion = window.confirm("¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'.");
+    const esAceptada = selectedMuestra.estado === "Aceptada";
+    const mensaje = esAceptada 
+      ? "¿Está seguro de que desea rechazar esta muestra aceptada? Esta acción cambiará el estado de la muestra a 'Rechazada'."
+      : "¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'.";
+      
+    const confirmacion = window.confirm(mensaje);
     if (!confirmacion) return;
     
     setIsProcessing(true);
@@ -254,7 +255,7 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       // Actualizar el estado de la muestra a rechazada
       const datosActualizacion = {
         estado: "Rechazada",
-        observaciones: (selectedMuestra.observaciones || '') + '\n[SISTEMA] Cotización rechazada por el cliente'
+        observaciones: (selectedMuestra.observaciones || '') + `\n[SISTEMA] ${esAceptada ? 'Muestra' : 'Cotización'} rechazada por el cliente`
       };
 
       await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
@@ -270,20 +271,19 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       onClose(); // Cerrar modal después de rechazar
       
     } catch (error) {
-      console.error("Error al rechazar cotización:", error);
-      alert("Error al rechazar la cotización: " + error.message);    } finally {
+      console.error("Error al rechazar:", error);
+      alert(`Error al rechazar la ${esAceptada ? 'muestra' : 'cotización'}: ` + error.message);
+    } finally {
       setIsProcessing(false);
     }
   };
-
   const esCotizacion = selectedMuestra?.estado === "En Cotización" || selectedMuestra?.estado === "En Cotizacion";
-  const cotizacionAceptada = selectedMuestra?.cotizacionAceptada;
+  const esAceptada = selectedMuestra?.estado === "Aceptada";
   return (
     <Modal open={selectedMuestra !== null} onClose={onClose}>
-      <Box sx={modalStyle}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={modalStyle}>        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">Detalles de la Muestra</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {tipoUsuario !== "laboratorista" && (
               <Button
                 variant="contained"
@@ -294,17 +294,29 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
                 Ver PDF
               </Button>
             )}
+            <IconButton
+              onClick={onClose}
+              sx={{
+                color: 'grey.500',
+                '&:hover': {
+                  backgroundColor: 'grey.100',
+                  color: 'grey.700'
+                }
+              }}
+              title="Cerrar"
+            >
+              <CloseIcon />
+            </IconButton>
           </Box>
         </Box>
-        
-        {/* Botones de Cotización */}
-        {esCotizacion && tipoUsuario !== "laboratorista" && (
+          {/* Botones de Cotización */}
+        {(esCotizacion || esAceptada) && tipoUsuario !== "laboratorista" && (
           <Box sx={{ mb: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
             <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-              Acciones de Cotización
+              {esCotizacion ? 'Acciones de Cotización' : 'Acciones de Muestra'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              {!cotizacionAceptada ? (
+              {esCotizacion ? (
                 <>
                   <Button
                     variant="contained"
@@ -325,8 +337,9 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
                     {isProcessing ? 'Procesando...' : 'Rechazar Cotización'}
                   </Button>
                 </>
-              ) : (
-                <>                  <Button
+              ) : esAceptada ? (
+                <>
+                  <Button
                     variant="contained"
                     color="primary"
                     onClick={onFirmarDocumento}
@@ -342,10 +355,10 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
                     disabled={isProcessing}
                     startIcon={isProcessing ? <CircularProgress size={20} /> : null}
                   >
-                    {isProcessing ? 'Procesando...' : 'Rechazar Cotización'}
+                    {isProcessing ? 'Procesando...' : 'Rechazar Muestra'}
                   </Button>
                 </>
-              )}
+              ) : null}
             </Box>
           </Box>
         )}
@@ -666,13 +679,27 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
     setError(null);
     onSave();
   };
-
   return (
     <Modal open={editingMuestra !== null} onClose={() => setEditingMuestra(null)}>
       <Box sx={{ ...modalStyle, width: 700, maxWidth: '98vw' }}>
-        <Typography variant="h5" align="center" sx={{ mb: 2, fontWeight: 'bold', color: '#39A900' }}>
-          Editar Muestra
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+            Editar Muestra
+          </Typography>
+          <IconButton
+            onClick={() => setEditingMuestra(null)}
+            sx={{
+              color: 'grey.500',
+              '&:hover': {
+                backgroundColor: 'grey.100',
+                color: 'grey.700'
+              }
+            }}
+            title="Cerrar"
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         )}
