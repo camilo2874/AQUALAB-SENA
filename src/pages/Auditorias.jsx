@@ -34,7 +34,10 @@ import {
   Download as DownloadIcon,
   FilterList as FilterListIcon,
   Refresh as RefreshIcon,
-  BarChart as BarChartIcon
+  BarChart as BarChartIcon,
+  Search as SearchIcon,
+  GetApp as GetAppIcon,
+  PictureAsPdf as PictureAsPdfIcon
 } from '@mui/icons-material';
 import { PDFService, excelGenerator } from "../services/pdfGenerator";
 import { Bar } from 'react-chartjs-2';
@@ -49,6 +52,16 @@ import {
 } from 'chart.js';
 import axios from 'axios';
 import Pagination from '@mui/material/Pagination';
+
+// Debounce para búsqueda eficiente
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 
 ChartJS.register(
   CategoryScale,
@@ -102,7 +115,7 @@ const ExcelGenerator = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [analisisDisponibles, setAnalisisDisponibles] = useState([]);
   const [filterState, setFilterState] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Nuevo estado para búsqueda por ID o cliente
+  const [searchTerm, setSearchTerm] = useState('');
   const [estadisticas, setEstadisticas] = useState({
     totalMuestras: 0,
     muestrasFinalizadas: 0,
@@ -113,26 +126,21 @@ const ExcelGenerator = () => {
   const [estadisticasAnalisis, setEstadisticasAnalisis] = useState([]);
   const [loadingAnalisis, setLoadingAnalisis] = useState(false);
   const [errorAnalisis, setErrorAnalisis] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState({
+  const [currentPage, setCurrentPage] = useState(1);  const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
     total: 0,
     totalPages: 1,
   });
-  const searchDebounceRef = useRef();
 
+  // Debounce para búsqueda eficiente
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
+  const firstNoResultRef = useRef(null);
   // Memoización de analisisDisponibles para evitar renders innecesarios
   const memoAnalisisDisponibles = useMemo(() => analisisDisponibles, [analisisDisponibles]);
 
   // Memoización de estados válidos
   const memoEstadosValidos = useMemo(() => ESTADOS_VALIDOS, []);
-
-  // Memoización de datos de paginación
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * pagination.limit;
-    return filteredData.slice(start, start + pagination.limit);
-  }, [filteredData, currentPage, pagination.limit]);
 
   // Limpieza de logs innecesarios y robustez en fetchAnalisisDisponibles
   const fetchAnalisisDisponibles = useCallback(async () => {
@@ -172,9 +180,7 @@ const ExcelGenerator = () => {
     } catch (error) {
       setAnalisisDisponibles([]);
     }
-  }, []);
-
-  // Limpieza de logs innecesarios y robustez en loadInitialData
+  }, []);  // Limpieza de logs innecesarios y robustez en loadInitialData
   const loadInitialData = useCallback(async (page = 1, limit = 10) => {
     setInitialLoading(true);
     setError(null);
@@ -204,52 +210,87 @@ const ExcelGenerator = () => {
       setInitialLoading(false);
     }
   }, []);
-
   useEffect(() => {
     loadInitialData();
     fetchAnalisisDisponibles();
   }, [loadInitialData, fetchAnalisisDisponibles]);
 
-  // Debounce en búsqueda
+  // Filtrar datos localmente cuando cambien los filtros
+  useEffect(() => {
+    try {
+      let filtered = Array.isArray(auditData.muestras) ? [...auditData.muestras] : [];
+
+      // Filtrar por estado
+      if (filterState) {
+        filtered = filtered.filter(muestra => muestra.estado === filterState);
+      }
+
+      // Filtrar por parámetro seleccionado
+      if (selectedParameter) {
+        filtered = filtered.filter(muestra => {
+          const parametros = [
+            ...(muestra.parametros || []),
+            ...(muestra.analisisSeleccionados || []),
+            ...(muestra.analisis || [])
+          ];
+          return parametros.some(param => {
+            if (typeof param === 'string') {
+              return param.toLowerCase().includes(selectedParameter.toLowerCase());
+            } else if (param?.nombre) {
+              return param.nombre.toLowerCase().includes(selectedParameter.toLowerCase());
+            }
+            return false;
+          });
+        });
+      }
+
+      // Filtrar por búsqueda con debounce
+      if (debouncedSearch.trim() !== "") {
+        const normalizedSearchTerm = debouncedSearch.toLowerCase();
+        filtered = filtered.filter(muestra => {
+          const idMatch = muestra.id && muestra.id.toString().toLowerCase().includes(normalizedSearchTerm);
+          const clienteMatch = muestra.cliente && muestra.cliente.toLowerCase().includes(normalizedSearchTerm);
+          return idMatch || clienteMatch;
+        });
+      }
+
+      setFilteredData(filtered);
+      
+      // Actualizar paginación
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / pagination.limit);
+      setPagination(prev => ({
+        ...prev,
+        total: totalItems,
+        totalPages: totalPages,
+        page: currentPage > totalPages ? 1 : currentPage
+      }));
+
+      // Enfocar en mensaje de "no resultados" si no hay muestras
+      if (filtered.length === 0 && firstNoResultRef.current) {
+        firstNoResultRef.current.focus();
+      }
+    } catch (err) {
+      console.error("Error al filtrar datos:", err);
+      setFilteredData([]);
+    }
+  }, [debouncedSearch, filterState, selectedParameter, auditData.muestras, pagination.limit, currentPage]);
+
+  // Memoizar handlers
   const handleSearchChange = useCallback((event) => {
-    const value = event.target.value;
-    setSearchTerm(value);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      filterData(value, filterState);
-    }, 350);
-  }, [filterState]);
+    setSearchTerm(event.target.value);
+  }, []);
 
-  // Memoización de filterData
-  const filterData = useCallback((searchTerm, estado) => {
-    let filtered = auditData.muestras || [];
-    if (searchTerm) {
-      const normalizedSearchTerm = searchTerm.toLowerCase();
-      filtered = filtered.filter(muestra => {
-        const idMatch = muestra.id && muestra.id.toString().toLowerCase().includes(normalizedSearchTerm);
-        const clienteMatch = muestra.cliente && muestra.cliente.toLowerCase().includes(normalizedSearchTerm);
-        return idMatch || clienteMatch;
-      });
-    }
-    if (estado) {
-      filtered = filtered.filter(muestra => muestra.estado === estado);
-    }
-    setFilteredData(filtered);
-  }, [auditData.muestras]);
-
-  // Memoización de handlers
   const handleParameterChange = useCallback((event) => {
-    const parameter = event.target.value;
-    setSelectedParameter(parameter);
-    filterData(parameter, filterState);
-  }, [filterData, filterState]);
+    setSelectedParameter(event.target.value);
+  }, []);
 
   const handleClearFilters = useCallback(() => {
     setSearchTerm('');
     setFilterState('');
-    filterData('', '');
-  }, [filterData]);
-
+    setSelectedParameter('');
+    setCurrentPage(1);
+  }, []);
   const handleTabChange = useCallback((event, newValue) => {
     setSelectedTab(newValue);
   }, []);
@@ -257,6 +298,12 @@ const ExcelGenerator = () => {
   const handlePageChange = useCallback((event, value) => {
     setCurrentPage(value);
   }, []);
+
+  // Obtener datos paginados
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pagination.limit;
+    return filteredData.slice(start, start + pagination.limit);
+  }, [filteredData, currentPage, pagination.limit]);
 
   const handleDownloadExcel = async (periodo = 'general') => {
     setLoading(true);
@@ -419,32 +466,11 @@ const ExcelGenerator = () => {
       setLoadingAnalisis(false);
     }
   };
-
   useEffect(() => {
     if (selectedTab === 1 && selectedParameter) {
       obtenerEstadisticasAnalisis();
     }
   }, [selectedTab, selectedParameter]);
-
-  // Estilos de tabla
-  const tableStyles = {
-    width: '100%',
-    borderCollapse: 'collapse',
-  };
-
-  const rowStyles = {
-    '&:nth-of-type(odd)': {
-      backgroundColor: '#f1f8e9',
-    },
-    '&:nth-of-type(even)': {
-      backgroundColor: 'white',
-    },
-    '&:hover': {
-      transform: 'scale(1.01)',
-      backgroundColor: '#e0f7fa',
-      transition: 'transform 0.2s',
-    },
-  };
 
   return (
     <div>
@@ -452,11 +478,50 @@ const ExcelGenerator = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
           <CircularProgress />
         </Box>
-      ) : (
-        <Grid container spacing={3}>          {/* Filtros y Controles */}
+      ) : (        <Grid container spacing={3}>
+          {/* Encabezado con título y botón de actualizar */}
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <BarChartIcon sx={{ fontSize: 40, color: '#39A900', mr: 2 }} />
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#39A900', flex: 1 }}>
+                Auditorías y Reportes
+              </Typography>
+              <Tooltip title="Actualizar datos" placement="left" arrow>
+                <IconButton
+                  onClick={() => {
+                    setInitialLoading(true);
+                    loadInitialData();
+                    fetchAnalisisDisponibles();
+                  }}
+                  sx={{
+                    backgroundColor: '#39A900',
+                    color: 'white',
+                    borderRadius: 2,
+                    p: 1.5,
+                    '&:hover': {
+                      backgroundColor: '#2d8000',
+                      transform: 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            
+            {/* Cinta decorativa */}
+            <Box sx={{ height: 6, width: 120, background: 'linear-gradient(90deg, #39A900 60%, #b2dfdb 100%)', borderRadius: 3, mb: 3 }} />
+          </Grid>          {/* Filtros y Controles Mejorados */}
+          <Grid item xs={12}>
+            <Card elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+              <CardContent sx={{ p: 3, background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <FilterListIcon sx={{ color: '#39A900', mr: 1 }} />
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                    Filtros de Búsqueda
+                  </Typography>
+                </Box>
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={3}>
                     <TextField
@@ -465,18 +530,36 @@ const ExcelGenerator = () => {
                       variant="outlined"
                       value={searchTerm}
                       onChange={handleSearchChange}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: 'white',
+                          borderRadius: 2,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+                          '&.Mui-focused': { boxShadow: '0 4px 16px rgba(57,169,0,0.3)' }
+                        }
+                      }}
+                      InputProps={{
+                        startAdornment: <SearchIcon sx={{ color: '#39A900', mr: 1 }} />
+                      }}
+                      inputProps={{ 'aria-label': 'Buscar auditoría' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
+                    <FormControl fullWidth>
                       <InputLabel>Parámetro</InputLabel>
                       <Select
                         value={selectedParameter}
                         onChange={handleParameterChange}
                         label="Parámetro"
-                        sx={{ bgcolor: 'white', borderRadius: 2 }}
+                        sx={{ 
+                          backgroundColor: 'white', 
+                          borderRadius: 2,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+                        }}
                       >
-                        <MenuItem value="">Todos</MenuItem>
+                        <MenuItem value="">Todos los parámetros</MenuItem>
                         {memoAnalisisDisponibles && memoAnalisisDisponibles.map((param) => (
                           <MenuItem key={param.id || param.nombre} value={typeof param === 'string' ? param : param.nombre}>
                             {typeof param === 'string' ? param : param.nombre}
@@ -486,15 +569,20 @@ const ExcelGenerator = () => {
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
+                    <FormControl fullWidth>
                       <InputLabel>Estado</InputLabel>
                       <Select
                         value={filterState}
                         onChange={(e) => setFilterState(e.target.value)}
                         label="Estado"
-                        sx={{ bgcolor: 'white', borderRadius: 2 }}
+                        sx={{ 
+                          backgroundColor: 'white', 
+                          borderRadius: 2,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+                        }}
                       >
-                        <MenuItem value="">Todos</MenuItem>
+                        <MenuItem value="">Todos los estados</MenuItem>
                         {memoEstadosValidos.map((estado) => (
                           <MenuItem key={estado} value={estado}>{estado}</MenuItem>
                         ))}
@@ -504,14 +592,27 @@ const ExcelGenerator = () => {
                   <Grid item xs={12} md={3}>
                     <Button
                       fullWidth
-                      variant="contained"
-                      color="secondary"
+                      variant="outlined"
                       onClick={handleClearFilters}
-                      size="medium"
+                      startIcon={<RefreshIcon />}
                       sx={{
-                        bgcolor: '#39A900',
-                        height: '40px',
-                        '&:hover': { bgcolor: '#2d8600', transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' },
+                        borderColor: '#39A900',
+                        color: '#39A900',
+                        fontWeight: 'bold',
+                        borderRadius: 2,
+                        height: 56,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        '&:hover': {
+                          backgroundColor: '#e8f5e9',
+                          borderColor: '#2d8000',
+                          boxShadow: '0 4px 16px rgba(57,169,0,0.3)',
+                          transform: 'translateY(-2px)'
+                        },
+                        '&:disabled': {
+                          borderColor: '#ccc',
+                          color: '#999'
+                        },
+                        transition: 'all 0.2s ease'
                       }}
                       disabled={!searchTerm && !filterState && !selectedParameter}
                     >
@@ -532,57 +633,165 @@ const ExcelGenerator = () => {
                 <Tab label="Reportes" />
               </Tabs>
             </Box>
-          </Grid>
-
-          {/* Contenido de las Tabs */}
+          </Grid>          {/* Contenido de las Tabs */}
           <Grid item xs={12}>
             {selectedTab === 0 && (
-              <TableContainer component={Paper}>
-                <Table sx={tableStyles}>
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#39A900' }}>
-                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>ID Muestra</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Cliente</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Fecha Ingreso</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Estado</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Parámetros</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {/* Evitar nodos de texto/espacios entre <TableRow> para prevenir errores de hidratación */}
-                    {paginatedData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ color: '#888' }}>
-                          No hay muestras para mostrar
-                        </TableCell>
+              <Card elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                <Box sx={{ 
+                  background: 'linear-gradient(90deg, #39A900 0%, #4caf50 100%)',
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <BarChartIcon sx={{ color: 'white', mr: 1 }} />
+                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
+                    Lista de Muestras para Auditoría ({filteredData.length} encontradas)
+                  </Typography>
+                </Box>
+                <TableContainer>
+                  <Table sx={{ minWidth: 650 }}>
+                    <TableHead>
+                      <TableRow sx={{ 
+                        backgroundColor: '#f8f9fa',
+                        '& .MuiTableCell-head': {
+                          fontWeight: 'bold',
+                          color: '#39A900',
+                          borderBottom: '2px solid #39A900'
+                        }
+                      }}>
+                        <TableCell>ID Muestra</TableCell>
+                        <TableCell>Cliente</TableCell>
+                        <TableCell>Fecha Ingreso</TableCell>
+                        <TableCell>Estado</TableCell>
+                        <TableCell>Parámetros</TableCell>
+                        <TableCell align="center">Acciones</TableCell>
                       </TableRow>
-                    ) : paginatedData.map((muestra) => (
-                      <TableRow key={muestra.id} sx={rowStyles}>
-                        <TableCell>{muestra.id}</TableCell>
-                        <TableCell>{muestra.cliente}</TableCell>
-                        <TableCell>{muestra.fechaIngreso}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={muestra.estado}
-                            {...getEstadoChipProps(muestra.estado)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {(muestra.parametros || []).map((param) => (
-                            <Chip
-                              key={param}
-                              label={param}
-                              size="small"
-                              sx={{ mr: 1 }}
-                            />
-                          ))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}            
+                    </TableHead>
+                    <TableBody>
+                      {paginatedData.length === 0 ? (
+                        <TableRow>
+                          <TableCell 
+                            colSpan={6} 
+                            align="center" 
+                            sx={{ 
+                              py: 4,
+                              color: '#666',
+                              fontStyle: 'italic'
+                            }}
+                            ref={firstNoResultRef}
+                            tabIndex={-1}
+                          >
+                            {filteredData.length === 0 && (searchTerm || filterState || selectedParameter) 
+                              ? "No se encontraron muestras que coincidan con los filtros aplicados" 
+                              : "No hay muestras disponibles"}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedData.map((muestra, index) => (
+                          <TableRow 
+                            key={muestra.id} 
+                            sx={{
+                              '&:nth-of-type(odd)': { backgroundColor: '#f8f9fa' },
+                              '&:hover': {
+                                backgroundColor: '#e3f2fd',
+                                transform: 'scale(1.01)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                transition: 'all 0.2s ease'
+                              },
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <TableCell sx={{ fontWeight: 'medium' }}>{muestra.id}</TableCell>
+                            <TableCell>{muestra.cliente}</TableCell>
+                            <TableCell>{muestra.fechaIngreso}</TableCell>
+                            <TableCell>
+                              <Chip
+                                label={muestra.estado}
+                                size="small"
+                                {...getEstadoChipProps(muestra.estado)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {(muestra.parametros || []).slice(0, 3).map((param) => (
+                                  <Chip
+                                    key={param}
+                                    label={param}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ 
+                                      fontSize: '0.75rem',
+                                      height: 24,
+                                      borderColor: '#39A900',
+                                      color: '#39A900'
+                                    }}
+                                  />
+                                ))}
+                                {(muestra.parametros || []).length > 3 && (
+                                  <Chip
+                                    label={`+${(muestra.parametros || []).length - 3}`}
+                                    size="small"
+                                    sx={{ 
+                                      fontSize: '0.75rem',
+                                      height: 24,
+                                      backgroundColor: '#e0e0e0'
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                <Tooltip title="Ver detalles" placement="top">
+                                  <IconButton
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: '#2196f3',
+                                      color: 'white',
+                                      '&:hover': {
+                                        backgroundColor: '#1976d2',
+                                        transform: 'scale(1.1)'
+                                      },
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onClick={() => {
+                                      // Aquí iría la lógica para ver detalles
+                                      console.log('Ver detalles de muestra:', muestra.id);
+                                    }}
+                                  >
+                                    <VisibilityIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Generar PDF" placement="top">
+                                  <IconButton
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: '#f44336',
+                                      color: 'white',
+                                      '&:hover': {
+                                        backgroundColor: '#d32f2f',
+                                        transform: 'scale(1.1)'
+                                      },
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onClick={() => {
+                                      // Aquí iría la lógica para generar PDF
+                                      console.log('Generar PDF de muestra:', muestra.id);
+                                    }}
+                                  >
+                                    <PictureAsPdfIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Card>
+            )}
             {selectedTab === 1 && (
               <Box sx={{ mt: 3 }}>
                 {selectedParameter ? (
@@ -700,121 +909,248 @@ const ExcelGenerator = () => {
                   </Card>
                 )}
               </Box>
+            )}            {selectedTab === 2 && (
+              <Box sx={{ mt: 2 }}>
+                <Grid container spacing={3}>
+                  {/* Gráfico de Distribución de Muestras */}
+                  <Grid item xs={12}>
+                    <Card elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                      <Box sx={{ 
+                        background: 'linear-gradient(90deg, #39A900 0%, #4caf50 100%)',
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <BarChartIcon sx={{ color: 'white', mr: 1 }} />
+                        <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
+                          Estadísticas de Muestras
+                        </Typography>
+                      </Box>
+                      <CardContent sx={{ p: 3 }}>
+                        <Grid container spacing={3} alignItems="center">
+                          <Grid item xs={12} md={4}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between',
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor: '#f8f9fa',
+                                border: '1px solid #e9ecef'
+                              }}>
+                                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                  Total de muestras:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                                  {estadisticas.totalMuestras}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between',
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor: '#e8f5e9',
+                                border: '1px solid #4caf50'
+                              }}>
+                                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                  Muestras finalizadas:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
+                                  {estadisticas.muestrasFinalizadas}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between',
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor: '#ffebee',
+                                border: '1px solid #f44336'
+                              }}>
+                                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                  Muestras rechazadas:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#f44336' }}>
+                                  {estadisticas.muestrasRechazadas}
+                                </Typography>
+                              </Box>
+                              <Box sx={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between',
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor: '#e3f2fd',
+                                border: '1px solid #2196f3'
+                              }}>
+                                <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                                  Muestras en análisis:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2196f3' }}>
+                                  {estadisticas.muestrasEnAnalisis}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} md={8}>
+                            <Box sx={{ height: 400, p: 2 }}>
+                              <Bar
+                                data={dataGrafico}
+                                options={opcionesGrafico}
+                              />
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Botones de Descarga Mejorados */}
+                  <Grid item xs={12}>
+                    <Card elevation={3} sx={{ borderRadius: 3 }}>
+                      <CardContent sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom sx={{ 
+                          color: '#39A900', 
+                          fontWeight: 'bold',
+                          mb: 3,
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}>
+                          <GetAppIcon sx={{ mr: 1 }} />
+                          Reportes de Descarga
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={4}>
+                            <Card sx={{ height: '100%', border: '2px solid #39A900', borderRadius: 2 }}>
+                              <CardContent sx={{ textAlign: 'center', p: 3 }}>
+                                <Box sx={{ mb: 2 }}>
+                                  <DownloadIcon sx={{ fontSize: 40, color: '#39A900' }} />
+                                </Box>
+                                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                  Reporte General
+                                </Typography>
+                                <Typography variant="body2" sx={{ mb: 3, color: '#666' }}>
+                                  Descarga todos los datos de auditoría
+                                </Typography>
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  onClick={() => handleDownloadExcel('general')}
+                                  disabled={loading}
+                                  startIcon={<DownloadIcon />}
+                                  sx={{
+                                    backgroundColor: '#39A900',
+                                    '&:hover': { 
+                                      backgroundColor: '#2d8600',
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: '0 4px 12px rgba(57,169,0,0.3)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                >
+                                  Descargar Excel
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Card sx={{ height: '100%', border: '2px solid #2196f3', borderRadius: 2 }}>
+                              <CardContent sx={{ textAlign: 'center', p: 3 }}>
+                                <Box sx={{ mb: 2 }}>
+                                  <DownloadIcon sx={{ fontSize: 40, color: '#2196f3' }} />
+                                </Box>
+                                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                  Reporte Semanal
+                                </Typography>
+                                <Typography variant="body2" sx={{ mb: 3, color: '#666' }}>
+                                  Datos de los últimos 7 días
+                                </Typography>
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  onClick={() => handleDownloadExcel('semanal')}
+                                  disabled={loading}
+                                  startIcon={<DownloadIcon />}
+                                  sx={{
+                                    backgroundColor: '#2196f3',
+                                    '&:hover': { 
+                                      backgroundColor: '#1976d2',
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: '0 4px 12px rgba(33,150,243,0.3)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                >
+                                  Descargar Excel
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <Card sx={{ height: '100%', border: '2px solid #ff9800', borderRadius: 2 }}>
+                              <CardContent sx={{ textAlign: 'center', p: 3 }}>
+                                <Box sx={{ mb: 2 }}>
+                                  <DownloadIcon sx={{ fontSize: 40, color: '#ff9800' }} />
+                                </Box>
+                                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                  Reporte Mensual
+                                </Typography>
+                                <Typography variant="body2" sx={{ mb: 3, color: '#666' }}>
+                                  Datos del mes actual
+                                </Typography>
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  onClick={() => handleDownloadExcel('mensual')}
+                                  disabled={loading}
+                                  startIcon={<DownloadIcon />}
+                                  sx={{
+                                    backgroundColor: '#ff9800',
+                                    '&:hover': { 
+                                      backgroundColor: '#f57c00',
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: '0 4px 12px rgba(255,152,0,0.3)'
+                                    },
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                >
+                                  Descargar Excel
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </Box>
             )}
-
-            {selectedTab === 2 && (
-              <Grid container spacing={2}>
-                {/* Gráfico de Distribución de Muestras */}
-                <Grid item xs={12}>
-                  <Card sx={{ mt: 2, p: 3, borderRadius: 2, boxShadow: 3 }}>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'medium', color: '#39A900' }}>
-                      Estadísticas de Muestras
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          Total de muestras: <strong>{estadisticas.totalMuestras}</strong>
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          Muestras finalizadas: <strong>{estadisticas.muestrasFinalizadas}</strong>
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          Muestras rechazadas: <strong>{estadisticas.muestrasRechazadas}</strong>
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          Muestras en análisis: <strong>{estadisticas.muestrasEnAnalisis}</strong>
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Box sx={{ height: 300 }}>
-                          <Bar
-                            data={dataGrafico}
-                            options={opcionesGrafico}
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Card>
-                </Grid>
-
-                {/* Botones de Descarga */}
-                <Grid item xs={12} md={4}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Reporte General
-                      </Typography>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        color="primary"
-                        onClick={() => handleDownloadExcel('general')}
-                        disabled={loading}
-                        startIcon={<DownloadIcon />}
-                        sx={{
-                          bgcolor: '#39A900',
-                          '&:hover': { bgcolor: '#2d8600' }
-                        }}
-                      >
-                        Descargar Excel
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Reporte Semanal
-                      </Typography>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        color="secondary"
-                        onClick={() => handleDownloadExcel('semanal')}
-                        disabled={loading}
-                        startIcon={<DownloadIcon />}
-                      >
-                        Descargar Excel
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Reporte Mensual
-                      </Typography>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        color="info"
-                        onClick={() => handleDownloadExcel('mensual')}
-                        disabled={loading}
-                        startIcon={<DownloadIcon />}
-                      >
-                        Descargar Excel
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-            )}
-          </Grid>
-
-          {/* Paginación */}
-          <Grid item xs={12}>
-            <Box display="flex" justifyContent="center" mt={2}>
-              <Pagination
-                count={pagination.totalPages}
-                page={currentPage}
-                onChange={handlePageChange}
-                color="primary"
-              />
-            </Box>
-          </Grid>
+          </Grid>          {/* Paginación */}
+          {pagination.totalPages > 1 && (
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={pagination.totalPages}
+                  page={currentPage}
+                  onChange={handlePageChange}
+                  color="primary"
+                  sx={{
+                    '& .MuiPaginationItem-root': {
+                      color: '#39A900',
+                    },
+                    '& .Mui-selected': {
+                      backgroundColor: '#39A900',
+                      color: 'white',
+                      '&:hover': {
+                        backgroundColor: '#2d8000',
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            </Grid>
+          )}
         </Grid>
       )}
 
@@ -830,9 +1166,6 @@ const ExcelGenerator = () => {
 const Auditorias = () => {
   return (
     <Paper sx={{ padding: 4, maxWidth: 1400, margin: '32px auto', boxShadow: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: '#222', mb: 3, textAlign: 'center' }}>
-        Auditorías
-      </Typography>
       <ExcelGenerator />
     </Paper>
   );

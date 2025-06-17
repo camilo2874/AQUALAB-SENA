@@ -3,6 +3,16 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { PDFService } from '../services/pdfGenerator';
 import SignatureCanvas from 'react-signature-canvas';
+
+// Debounce para búsqueda eficiente
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 import {
   Table,
   TableBody,
@@ -44,6 +54,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ScienceIcon from '@mui/icons-material/Science';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CloseIcon from '@mui/icons-material/Close';
+import SearchIcon from '@mui/icons-material/Search';
 import AuthContext from "../context/AuthContext";
 import { muestrasService } from "../services/muestras.service";
 import { cambiosEstadoService } from "../services/cambiosEstado.service";
@@ -933,6 +944,7 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
 /* =================== COMPONENTE PRINCIPAL: Muestras =================== */
 const Muestras = memo(() => {
   const [muestras, setMuestras] = useState([]);
+  const [filteredMuestras, setFilteredMuestras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("todos");
@@ -948,7 +960,9 @@ const Muestras = memo(() => {
   const navigate = useNavigate();
   const { tipoUsuario } = useContext(AuthContext);
   // Define la variable que indica si se debe ocultar la información del cliente
-  const hideClientData = tipoUsuario === "laboratorista";  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const hideClientData = tipoUsuario === "laboratorista";
+  
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
   // Estados para el modal de firmas
@@ -961,6 +975,10 @@ const Muestras = memo(() => {
   const [isProcessing, setIsProcessing] = useState(false);
   const firmaAdministradorRef = useRef(null);
   const firmaClienteRef = useRef(null);
+
+  // Debounce para búsqueda eficiente
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const firstNoResultRef = useRef(null);
 
   // Función para manejar cambios de estado desde el modal
   const handleEstadoChange = useCallback((muestraActualizada) => {
@@ -1008,40 +1026,21 @@ const Muestras = memo(() => {
     borderRadius: 2,
     maxHeight: "90vh",
     overflowY: "auto",
-  };
-
-  // Ajustar la función fetchMuestras para manejar correctamente el formato de fecha
-  const fetchMuestras = useCallback(async (
-    page = 1,
-    limit = 10,
-    sortBy = "createdAt",
-    sortOrder = "desc",
-    tipo = filterType,
-    searchQuery = search,
-    dateFilter = filterDate,
-    applyFiltersToAllPages = true
-  ) => {
+  };  // Función para obtener todas las muestras (sin filtros del servidor)
+  const fetchAllMuestras = useCallback(async () => {
     try {
       setLoading(true);
-      const formattedDate = dateFilter ? dateFilter.split("-").reverse().join("/") : "";
+      // Obtener todas las muestras sin filtros para poder filtrar localmente
       const response = await muestrasService.obtenerMuestras({
-        page,
-        limit,
-        sortBy,
-        sortOrder,
-        tipo: tipo !== "todos" ? tipo : undefined,
-        search: searchQuery.trim() || undefined,
-        date: formattedDate || undefined,
-        applyFiltersToAllPages
+        page: 1,
+        limit: 1000, // Obtener un número grande para tener todas las muestras
+        sortBy: "createdAt",
+        sortOrder: "desc",
+        applyFiltersToAllPages: false // No aplicar filtros en el servidor
       });
+      
       if (response.success && response.data) {
-        setMuestras(response.data.items);
-        setPagination({
-          page: response.data.page,
-          limit: response.data.limit,
-          total: response.data.total,
-          totalPages: response.data.totalPages,
-        });
+        setMuestras(Array.isArray(response.data.items) ? response.data.items : []);
       } else {
         throw new Error("No se pudieron obtener las muestras");
       }
@@ -1055,20 +1054,88 @@ const Muestras = memo(() => {
     } finally {
       setLoading(false);
     }
-  }, [filterType, search, filterDate]);
+  }, []);
 
+  // Cargar muestras al inicio
   useEffect(() => {
-    fetchMuestras(pagination.page, pagination.limit, "createdAt", "desc", filterType, search, filterDate);
-  }, [fetchMuestras, pagination.page, filterType, search, filterDate]);
+    fetchAllMuestras();
+  }, [fetchAllMuestras]);
 
+  // Filtrar muestras localmente cuando cambien los filtros
+  useEffect(() => {
+    try {
+      let filtered = Array.isArray(muestras) ? [...muestras] : [];
+
+      // Filtrar por tipo de análisis
+      if (filterType !== "todos") {
+        filtered = filtered.filter(
+          (muestra) => muestra.tipoAnalisis?.toLowerCase() === filterType.toLowerCase()
+        );
+      }
+
+      // Filtrar por fecha
+      if (filterDate.trim() !== "") {
+        filtered = filtered.filter((muestra) => {
+          const fechaMuestra = muestra.creadoPor?.fechaCreacion?.fecha;
+          if (!fechaMuestra) return false;
+          
+          // Convertir fecha de filtro de YYYY-MM-DD a DD/MM/YYYY
+          const [year, month, day] = filterDate.split("-");
+          const fechaFiltro = `${day}/${month}/${year}`;
+          
+          return fechaMuestra === fechaFiltro;
+        });
+      }
+
+      // Filtrar por búsqueda con debounce
+      if (debouncedSearch.trim() !== "") {
+        filtered = filtered.filter((muestra) => {
+          const searchTerm = debouncedSearch.toLowerCase();
+          const idMuestra = (muestra.id_muestra || muestra.id_muestrea || muestra._id || "").toString().toLowerCase();
+          const cliente = (muestra.cliente?.nombre || muestra.nombreCliente || "").toLowerCase();
+          const documento = (muestra.cliente?.documento || muestra.documento || "").toString().toLowerCase();
+          
+          return idMuestra.includes(searchTerm) || 
+                 cliente.includes(searchTerm) || 
+                 documento.includes(searchTerm);
+        });
+      }
+
+      setFilteredMuestras(filtered);
+      
+      // Actualizar paginación
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / pagination.limit);
+      setPagination(prev => ({
+        ...prev,
+        total: totalItems,
+        totalPages: totalPages,
+        page: prev.page > totalPages ? 1 : prev.page
+      }));
+
+      // Enfocar en mensaje de "no resultados" si no hay muestras
+      if (filtered.length === 0 && firstNoResultRef.current) {
+        firstNoResultRef.current.focus();
+      }
+    } catch (err) {
+      console.error("Error al filtrar muestras:", err);
+      setFilteredMuestras([]);
+    }
+  }, [debouncedSearch, filterType, filterDate, muestras, pagination.limit]);
+
+  // Obtener muestras para la página actual
+  const paginatedMuestras = useMemo(() => {
+    const startIndex = (pagination.page - 1) * pagination.limit;
+    const endIndex = startIndex + pagination.limit;
+    return filteredMuestras.slice(startIndex, endIndex);
+  }, [filteredMuestras, pagination.page, pagination.limit]);
   const handleViewDetails = useCallback((muestra) => setSelectedMuestra(muestra), []);
   const handleEditMuestra = useCallback((muestra) => setEditingMuestra(muestra), []);
   const handleClearFilters = useCallback(() => {
     setFilterType("todos");
     setFilterDate("");
     setSearch("");
-    fetchMuestras(1, pagination.limit, "createdAt", "desc", "todos", "", "");
-  }, [fetchMuestras, pagination.limit]);
+  }, []);
 
   const handleSaveEdit = async () => {
     try {
@@ -1096,9 +1163,7 @@ const Muestras = memo(() => {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         }
-      );
-
-      const updatedMuestras = muestras.map((m) =>
+      );      const updatedMuestras = muestras.map((m) =>
         (m.id_muestra === editingMuestra.id_muestrea || m.id_muestrea === editingMuestra.id_muestrea || m.id_muestra === editingMuestra.id_muestra || m._id === editingMuestra._id)
           ? { ...m, ...updateData }
           : m
@@ -1138,27 +1203,25 @@ const Muestras = memo(() => {
 
   // 1. Memoizar ActionButton para evitar renders innecesarios
   const MemoActionButton = React.memo(ActionButton);
-
   // 2. Definir handler de selección de muestra correctamente (sin custom hook)
   const selectMuestraHandler = useCallback(
     (muestra) => () => setSelectedMuestra(muestra),
     [setSelectedMuestra]
   );
 
+  // Memoizar handlers para filtros
   const handleFilterChange = useCallback((e) => {
     setFilterType(e.target.value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
 
   const handleDateChange = useCallback((e) => {
     setFilterDate(e.target.value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
 
   const handleSearchChange = useCallback((e) => {
     setSearch(e.target.value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
+
   const handlePageChange = useCallback((event, value) => {
     setPagination((prev) => ({ ...prev, page: value }));
   }, []);
@@ -1321,7 +1384,7 @@ const Muestras = memo(() => {
             <IconButton
               onClick={() => {
                 setLoading(true);
-                fetchMuestras(pagination.page, pagination.limit);
+                fetchAllMuestras();
               }}
               sx={{
                 backgroundColor: '#39A900',
@@ -1340,13 +1403,18 @@ const Muestras = memo(() => {
           </Tooltip>
         </Box>
         {/* Cinta decorativa */}
-        <Box sx={{ height: 6, width: 120, background: 'linear-gradient(90deg, #39A900 60%, #b2dfdb 100%)', borderRadius: 3, mb: 3 }} />
-        {/* Filtros y búsqueda en tarjeta */}
+        <Box sx={{ height: 6, width: 120, background: 'linear-gradient(90deg, #39A900 60%, #b2dfdb 100%)', borderRadius: 3, mb: 3 }} />        {/* Filtros y búsqueda en tarjeta */}
         <Paper elevation={3} sx={{ mb: 3, p: 2, borderRadius: 3, background: '#f9fbe7' }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={3}>
-              <Select value={filterType} onChange={handleFilterChange} fullWidth sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}>
-                <MenuItem value="todos">Todos</MenuItem>
+              <Select 
+                value={filterType} 
+                onChange={handleFilterChange} 
+                fullWidth 
+                sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}
+                displayEmpty
+              >
+                <MenuItem value="todos">Todos los tipos</MenuItem>
                 <MenuItem value="Fisicoquímico">Fisicoquímico</MenuItem>
                 <MenuItem value="Microbiológico">Microbiológico</MenuItem>
               </Select>
@@ -1364,16 +1432,38 @@ const Muestras = memo(() => {
             </Grid>
             <Grid item xs={12} sm={4}>
               <TextField
-                label="Buscar (ID o Cliente)"
+                label="Buscar (ID, Cliente o Documento)"
                 variant="outlined"
                 fullWidth
                 value={search}
                 onChange={handleSearchChange}
                 sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ color: '#39A900', mr: 1 }} />
+                  ),
+                }}
+                inputProps={{ 'aria-label': 'Buscar muestra' }}
               />
             </Grid>
             <Grid item xs={12} sm={2}>
-              <Button variant="outlined" fullWidth onClick={handleClearFilters} sx={{ borderColor: '#39A900', color: '#39A900', fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}>
+              <Button 
+                variant="outlined" 
+                fullWidth 
+                onClick={handleClearFilters} 
+                sx={{ 
+                  borderColor: '#39A900', 
+                  color: '#39A900', 
+                  fontWeight: 'bold', 
+                  borderRadius: 2, 
+                  boxShadow: 1, 
+                  '&:hover': { 
+                    background: '#e8f5e9', 
+                    borderColor: '#2d8000' 
+                  } 
+                }}
+                disabled={filterType === 'todos' && !filterDate && !search}
+              >
                 Limpiar Filtros
               </Button>
             </Grid>
@@ -1398,18 +1488,26 @@ const Muestras = memo(() => {
                   <TableCell sx={{ color: "white", fontWeight: "bold" }}>Tipo de Análisis</TableCell>
                   <TableCell sx={{ color: "white", fontWeight: "bold" }}>Acciones</TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {muestras.map((muestra, idx) => (
-                  <TableRow
-                    key={muestra.id_muestra || muestra.id_muestrea || muestra._id}
-                    sx={{
-                      background: idx % 2 === 0 ? '#f1f8e9' : 'white',
-                      transition: "transform 0.2s",
-                      "&:hover": { transform: "scale(1.01)", background: '#e0f2f1' },
-                      cursor: "pointer",
-                    }}
-                  >
+              </TableHead>              <TableBody>
+                {paginatedMuestras.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={hideClientData ? 6 : 8} align="center">
+                      <Typography ref={firstNoResultRef} tabIndex={-1} sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 18 }}>
+                        No hay muestras que coincidan con la búsqueda o filtros.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedMuestras.map((muestra, idx) => (
+                    <TableRow
+                      key={muestra.id_muestra || muestra.id_muestrea || muestra._id}
+                      sx={{
+                        background: idx % 2 === 0 ? '#f1f8e9' : 'white',
+                        transition: "transform 0.2s",
+                        "&:hover": { transform: "scale(1.01)", background: '#e0f2f1' },
+                        cursor: "pointer",
+                      }}
+                    >
                     <TableCell onClick={selectMuestraHandler(muestra)}>
                       {muestra.id_muestrea || muestra.id_muestra || muestra._id}
                     </TableCell>
@@ -1467,11 +1565,11 @@ const Muestras = memo(() => {
                           tooltip="Registrar Resultados"
                           onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
                           IconComponent={AssignmentIcon}
-                        />
-                      </Box>
+                        />                      </Box>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>

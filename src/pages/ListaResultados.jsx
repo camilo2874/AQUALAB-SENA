@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, memo, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -39,7 +39,19 @@ import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
 import GetAppIcon from '@mui/icons-material/GetApp';
+import SearchIcon from '@mui/icons-material/Search';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { PDFService } from '../services/pdfGenerator';
+
+// Debounce para búsqueda eficiente
+function useDebouncedValue(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 
 // URLs base actualizadas
 const BASE_URLS = {
@@ -68,6 +80,7 @@ const formatearFecha = (fecha) => {
 const ListaResultados = memo(() => {
   const navigate = useNavigate();
   const [resultados, setResultados] = useState([]);
+  const [filteredResultados, setFilteredResultados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -87,22 +100,20 @@ const ListaResultados = memo(() => {
     totalPages: 1,
   });
 
-  const debounceTimeout = useRef();
-
+  // Debounce para búsqueda eficiente
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
+  const firstNoResultRef = useRef(null);
   // Memoizar handlers
   const handleSearchChange = useCallback((event) => {
     setSearchTerm(event.target.value);
-    setCurrentPage(1);
   }, []);
 
   const handleFilterEstadoChange = useCallback((event) => {
     setFilterEstado(event.target.value);
-    setCurrentPage(1);
   }, []);
 
   const handleDateChange = useCallback((e) => {
     setFilterDate(e.target.value);
-    setCurrentPage(1);
   }, []);
 
   const handlePageChange = useCallback((event, value) => {
@@ -115,31 +126,32 @@ const ListaResultados = memo(() => {
     setSearchTerm('');
     setCurrentPage(1);
   }, []);
-
-  // Cargar resultados (memoizado)
-  const cargarResultados = useCallback(async (page = 1, limit = 10, estado = filterEstado, search = searchTerm, date = filterDate) => {
+  // Función para obtener todos los resultados (sin filtros del servidor)
+  const cargarTodosLosResultados = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      
       if (!token) {
         setError('No tienes autorización. Inicia sesión.');
         navigate('/login');
         return;
       }
+      
       const userRole = userData.rol?.toLowerCase();
       if (!userRole || (userRole !== 'laboratorista' && userRole !== 'administrador')) {
         setError('No tienes autorización para ver esta página.');
         navigate('/login');
         return;
       }
+
+      // Obtener todos los resultados sin filtros para poder filtrar localmente
       const params = {
-        page,
-        limit,
-        ...(search.trim() && { search: search.trim() }),
-        ...(estado !== 'todos' && { verificado: estado === 'finalizada' ? 'true' : 'false' }),
-        ...(date && { fecha: date }),
+        page: 1,
+        limit: 1000, // Obtener un número grande para tener todos los resultados
       };
+      
       const queryParams = new URLSearchParams(params).toString();
       const response = await axios.get(
         `${API_URLS.RESULTADOS}/resultados?${queryParams}`,
@@ -150,24 +162,13 @@ const ListaResultados = memo(() => {
           }
         }
       );
-      if (response.data && response.data.data && response.data.data.data && response.data.data.pagination) {
-        let filteredResultados = response.data.data.data;
-        if (estado !== 'todos') {
-          filteredResultados = filteredResultados.filter(resultado =>
-            estado === 'finalizada' ? resultado.verificado : !resultado.verificado
-          );
-        }
-        setResultados(filteredResultados);
-        setPagination({
-          page: response.data.data.pagination.currentPage,
-          limit: response.data.data.pagination.limit,
-          total: response.data.data.pagination.total,
-          totalPages: response.data.data.pagination.totalPages,
-        });
+      
+      if (response.data && response.data.data && response.data.data.data) {
+        setResultados(Array.isArray(response.data.data.data) ? response.data.data.data : []);
       } else {
         setResultados([]);
-        setPagination({ page: 1, limit, total: 0, totalPages: 1 });
       }
+      
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
@@ -176,19 +177,103 @@ const ListaResultados = memo(() => {
       } else {
         setError('Error al cargar los resultados. Por favor, intenta más tarde.');
       }
+      setResultados([]);
     } finally {
       setLoading(false);
     }
-  }, [filterEstado, searchTerm, filterDate, navigate]);
+  }, [navigate]);
 
-  // Efecto único para cargar resultados al cambiar cualquier filtro, búsqueda o página
+  // Cargar resultados al inicio
   useEffect(() => {
-    clearTimeout(debounceTimeout.current);
-    debounceTimeout.current = setTimeout(() => {
-      cargarResultados(currentPage, pagination.limit, filterEstado, searchTerm, filterDate);
-    }, 400);
-    return () => clearTimeout(debounceTimeout.current);
-  }, [currentPage, filterEstado, filterDate, searchTerm]);
+    cargarTodosLosResultados();
+  }, [cargarTodosLosResultados]);
+
+  // Filtrar resultados localmente cuando cambien los filtros
+  useEffect(() => {
+    try {
+      let filtered = Array.isArray(resultados) ? [...resultados] : [];
+
+      // Filtrar por estado
+      if (filterEstado !== 'todos') {
+        filtered = filtered.filter((resultado) => {
+          if (filterEstado === 'finalizada') {
+            return resultado.verificado === true;
+          } else if (filterEstado === 'en analisis') {
+            return resultado.verificado === false;
+          }
+          return true;
+        });
+      }
+
+      // Filtrar por fecha
+      if (filterDate.trim() !== "") {
+        filtered = filtered.filter((resultado) => {
+          if (!resultado.updatedAt) return false;
+          
+          let fechaResultado = '';
+          if (resultado.updatedAt.fecha) {
+            fechaResultado = resultado.updatedAt.fecha;
+          } else if (typeof resultado.updatedAt === 'string') {
+            // Si es una fecha ISO, convertirla
+            const date = new Date(resultado.updatedAt);
+            if (!isNaN(date)) {
+              const day = String(date.getDate()).padStart(2, '0');
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const year = date.getFullYear();
+              fechaResultado = `${day}/${month}/${year}`;
+            }
+          }
+          
+          // Convertir fecha de filtro de YYYY-MM-DD a DD/MM/YYYY
+          const [year, month, day] = filterDate.split("-");
+          const fechaFiltro = `${day}/${month}/${year}`;
+          
+          return fechaResultado === fechaFiltro;
+        });
+      }
+
+      // Filtrar por búsqueda con debounce
+      if (debouncedSearch.trim() !== "") {
+        filtered = filtered.filter((resultado) => {
+          const searchTerm = debouncedSearch.toLowerCase();
+          const idMuestra = (resultado.idMuestra || "").toString().toLowerCase();
+          const cliente = (resultado.cliente?.nombre || "").toLowerCase();
+          
+          return idMuestra.includes(searchTerm) || cliente.includes(searchTerm);
+        });
+      }
+
+      setFilteredResultados(filtered);
+      
+      // Actualizar paginación
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / pagination.limit);
+      setPagination(prev => ({
+        ...prev,
+        total: totalItems,
+        totalPages: totalPages,
+        page: currentPage > totalPages ? 1 : currentPage
+      }));
+
+      // Enfocar en mensaje de "no resultados" si no hay resultados
+      if (filtered.length === 0 && firstNoResultRef.current) {
+        firstNoResultRef.current.focus();
+      }
+    } catch (err) {
+      console.error("Error al filtrar resultados:", err);
+      setFilteredResultados([]);
+    }
+  }, [debouncedSearch, filterEstado, filterDate, resultados, pagination.limit, currentPage]);  // Ajustar la página actual cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterEstado, filterDate, debouncedSearch]);
+
+  // Obtener resultados para la página actual
+  const paginatedResultados = useMemo(() => {
+    const startIndex = (currentPage - 1) * pagination.limit;
+    const endIndex = startIndex + pagination.limit;
+    return filteredResultados.slice(startIndex, endIndex);
+  }, [filteredResultados, currentPage, pagination.limit]);
 
   // Handlers memoizados
   const handleFinalizarMuestra = async () => {
@@ -221,13 +306,12 @@ const ListaResultados = memo(() => {
       if (response.data.success) {
         setDialogoVerificacion(false);
         setSelectedResult(null);
-        setObservacionesVerificacion('');
-        setSnackbar({
+        setObservacionesVerificacion('');        setSnackbar({
           open: true,
           message: 'Muestra finalizada correctamente',
           severity: 'success'
         });
-        cargarResultados();
+        cargarTodosLosResultados(); // Recargar todos los resultados
       }
     } catch (error) {
       console.error('Error al finalizar muestra:', error);
@@ -323,27 +407,87 @@ const ListaResultados = memo(() => {
       });
     }
   };
+  // Componente reutilizable para iconos de acción con tooltip y efecto mejorado
+  const ActionButton = ({ tooltip, onClick, IconComponent, color = '#39A900', variant = 'default' }) => {
+    const getButtonStyles = () => {
+      const baseStyles = {
+        transition: 'all 0.3s ease',
+        borderRadius: 2,
+        p: 1,
+        minWidth: 36,
+        minHeight: 36,
+        '&:hover': {
+          transform: 'scale(1.1)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        }
+      };
 
-  // Componente reutilizable para iconos de acción con tooltip y efecto
-  const ActionButton = ({ tooltip, onClick, IconComponent, color }) => (
-    <Tooltip title={tooltip} placement="top" arrow>
-      <IconButton
-        onClick={e => {
-          e.stopPropagation();
-          onClick();
-        }}
-        sx={{
-          transition: 'transform 0.2s',
-          '&:hover': { transform: 'scale(1.1)', backgroundColor: 'rgba(57, 169, 0, 0.2)' },
-          color: color || '#39A900',
-        }}
-      >
-        <IconComponent />
-      </IconButton>
-    </Tooltip>
-  );
+      switch (variant) {
+        case 'view':
+          return {
+            ...baseStyles,
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            color: '#2196F3',
+            border: '1px solid rgba(33, 150, 243, 0.3)',
+            '&:hover': {
+              ...baseStyles['&:hover'],
+              backgroundColor: 'rgba(33, 150, 243, 0.2)',
+              borderColor: '#2196F3',
+            }
+          };
+        case 'pdf':
+          return {
+            ...baseStyles,
+            backgroundColor: 'rgba(255, 87, 34, 0.1)',
+            color: '#FF5722',
+            border: '1px solid rgba(255, 87, 34, 0.3)',
+            '&:hover': {
+              ...baseStyles['&:hover'],
+              backgroundColor: 'rgba(255, 87, 34, 0.2)',
+              borderColor: '#FF5722',
+            }
+          };
+        case 'download':
+          return {
+            ...baseStyles,
+            backgroundColor: 'rgba(57, 169, 0, 0.1)',
+            color: '#39A900',
+            border: '1px solid rgba(57, 169, 0, 0.3)',
+            '&:hover': {
+              ...baseStyles['&:hover'],
+              backgroundColor: 'rgba(57, 169, 0, 0.2)',
+              borderColor: '#39A900',
+            }
+          };
+        default:
+          return {
+            ...baseStyles,
+            backgroundColor: `rgba(${color === '#39A900' ? '57, 169, 0' : '33, 150, 243'}, 0.1)`,
+            color: color,
+            border: `1px solid rgba(${color === '#39A900' ? '57, 169, 0' : '33, 150, 243'}, 0.3)`,
+            '&:hover': {
+              ...baseStyles['&:hover'],
+              backgroundColor: `rgba(${color === '#39A900' ? '57, 169, 0' : '33, 150, 243'}, 0.2)`,
+            }
+          };
+      }
+    };
 
-  // Agregar estilos para la tabla en ListaResultados.jsx
+    return (
+      <Tooltip title={tooltip} placement="top" arrow>
+        <IconButton
+          onClick={e => {
+            e.stopPropagation();
+            onClick();
+          }}
+          sx={getButtonStyles()}
+        >
+          <IconComponent />
+        </IconButton>
+      </Tooltip>
+    );
+  };
+  // Estilos mejorados para la tabla
   const tableStyles = {
     width: '100%',
     borderCollapse: 'collapse',
@@ -359,21 +503,50 @@ const ListaResultados = memo(() => {
     '&:hover': {
       transform: 'scale(1.01)',
       backgroundColor: '#e0f7fa', // Color azul claro al pasar el mouse
-      transition: 'transform 0.2s',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      cursor: 'pointer'
     },
+    transition: 'all 0.2s ease',
   };
 
-  return (
-    <Paper sx={{ p: 4, margin: 'auto', maxWidth: 1390, mt: 4, bgcolor: 'background.paper', boxShadow: 6, borderRadius: 4 }}>
-      <Typography variant="h4" align="center" gutterBottom sx={{ 
-        color: '#39A900',
-        fontWeight: 'bold',
-        mb: 3
-      }}>
-        Lista de Resultados
-      </Typography>
+  return (    <Paper sx={{ p: 4, margin: 'auto', maxWidth: 1390, mt: 4, bgcolor: 'background.paper', boxShadow: 6, borderRadius: 4 }}>
+      {/* Encabezado con ícono */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" sx={{ 
+          color: '#39A900',
+          fontWeight: 'bold',
+          flex: 1
+        }}>
+          Lista de Resultados
+        </Typography>
+        <Tooltip title="Actualizar tabla" placement="left" arrow>
+          <IconButton
+            onClick={() => {
+              setLoading(true);
+              cargarTodosLosResultados();
+            }}
+            sx={{
+              backgroundColor: '#39A900',
+              color: 'white',
+              borderRadius: 2,
+              p: 1.5,
+              '&:hover': {
+                backgroundColor: '#2d8000',
+                transform: 'scale(1.1)',
+              },
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
-      {/* Filtros y búsqueda en tarjeta, igual que en Muestras */}
+      {/* Cinta decorativa */}
+      <Box sx={{ height: 6, width: 120, background: 'linear-gradient(90deg, #39A900 60%, #b2dfdb 100%)', borderRadius: 3, mb: 3 }} />
+
+      {/* Filtros y búsqueda en tarjeta */}
       <Paper elevation={3} sx={{ mb: 3, p: 2, borderRadius: 3, background: '#f9fbe7' }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={3}>
@@ -384,7 +557,7 @@ const ListaResultados = memo(() => {
               sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}
               displayEmpty
             >
-              <MenuItem value="todos">Todos</MenuItem>
+              <MenuItem value="todos">Todos los estados</MenuItem>
               <MenuItem value="finalizada">Finalizada</MenuItem>
               <MenuItem value="en analisis">En análisis</MenuItem>
             </Select>
@@ -402,16 +575,38 @@ const ListaResultados = memo(() => {
           </Grid>
           <Grid item xs={12} sm={4}>
             <TextField
-              label="Buscar por ID de muestra"
+              label="Buscar (ID de muestra o Cliente)"
               variant="outlined"
               fullWidth
               value={searchTerm}
               onChange={handleSearchChange}
               sx={{ background: 'white', borderRadius: 2, boxShadow: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <SearchIcon sx={{ color: '#39A900', mr: 1 }} />
+                ),
+              }}
+              inputProps={{ 'aria-label': 'Buscar resultado' }}
             />
           </Grid>
           <Grid item xs={12} sm={2}>
-            <Button variant="outlined" fullWidth onClick={handleClearFilters} sx={{ borderColor: '#39A900', color: '#39A900', fontWeight: 'bold', borderRadius: 2, boxShadow: 1, '&:hover': { background: '#e8f5e9', borderColor: '#2d8000' } }}>
+            <Button 
+              variant="outlined" 
+              fullWidth 
+              onClick={handleClearFilters} 
+              sx={{ 
+                borderColor: '#39A900', 
+                color: '#39A900', 
+                fontWeight: 'bold', 
+                borderRadius: 2, 
+                boxShadow: 1, 
+                '&:hover': { 
+                  background: '#e8f5e9', 
+                  borderColor: '#2d8000' 
+                } 
+              }}
+              disabled={filterEstado === 'todos' && !filterDate && !searchTerm}
+            >
               Limpiar Filtros
             </Button>
           </Grid>
@@ -422,28 +617,29 @@ const ListaResultados = memo(() => {
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress sx={{ color: '#39A900' }} />
         </Box>
-      ) : (
-        <>
-          <TableContainer component={Paper} sx={{ maxWidth: '1800%' }}>
-            <Table sx={tableStyles}>
-              <TableHead sx={{ bgcolor: '#39A900' }}>
-                <TableRow>
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>ID Muestra</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Cliente</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Última Actualización</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Acciones</TableCell>
+      ) : (        <>
+          <Paper elevation={2} sx={{ borderRadius: 3, boxShadow: 3, overflow: 'auto', minWidth: 1100 }}>
+            <TableContainer sx={{ minWidth: 1100 }}>
+              <Table sx={tableStyles}>
+                <TableHead sx={{ bgcolor: '#39A900' }}>
+                  <TableRow>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>ID Muestra</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Cliente</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Última Actualización</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Estado</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 'bold', fontSize: 16, width: 180, minWidth: 160 }}>Acciones</TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {resultados.length === 0 && !loading ? (
+              </TableHead><TableBody>
+                {paginatedResultados.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} align="center">
-                      No hay resultados para los filtros/búsqueda seleccionados.
+                      <Typography ref={firstNoResultRef} tabIndex={-1} sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 18 }}>
+                        No hay resultados que coincidan con la búsqueda o filtros.
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  resultados.map((resultado) => (
+                  paginatedResultados.map((resultado) => (
                     <TableRow 
                       key={resultado._id}
                       sx={rowStyles}
@@ -454,8 +650,7 @@ const ListaResultados = memo(() => {
                         {resultado.updatedAt?.fecha && resultado.updatedAt?.hora 
                           ? `${resultado.updatedAt.fecha} ${resultado.updatedAt.hora}`
                           : formatearFecha(resultado.updatedAt)}
-                      </TableCell>
-                      <TableCell>
+                      </TableCell>                      <TableCell>
                         <Chip
                           label={resultado.verificado ? "Finalizada" : "En análisis"}
                           color={resultado.verificado ? "success" : "primary"}
@@ -463,46 +658,74 @@ const ListaResultados = memo(() => {
                             bgcolor: resultado.verificado ? '#39A900' : '#1976D2',
                             color: 'white',
                             fontWeight: 'bold',
-                            fontSize: 15,
+                            fontSize: 14,
                             px: 2,
-                            boxShadow: resultado.verificado ? '0 2px 8px 0 rgba(57,169,0,0.10)' : '0 2px 8px 0 rgba(25,118,210,0.10)'
+                            py: 0.5,
+                            borderRadius: 3,
+                            boxShadow: resultado.verificado 
+                              ? '0 2px 8px 0 rgba(57,169,0,0.15)' 
+                              : '0 2px 8px 0 rgba(25,118,210,0.15)',
+                            '&:hover': {
+                              transform: 'scale(1.05)',
+                              transition: 'transform 0.2s ease'
+                            }
                           }}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }} onClick={e => e.stopPropagation()}>
+                      </TableCell><TableCell sx={{ width: 180, minWidth: 160 }}>
+                        <Box 
+                          sx={{ 
+                            display: 'flex', 
+                            gap: 1, 
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            flexWrap: 'wrap'
+                          }} 
+                          onClick={e => e.stopPropagation()}
+                        >
                           <ActionButton
                             tooltip="Ver Detalles"
                             onClick={() => handleVerDetalles(resultado)}
                             IconComponent={VisibilityIcon}
-                            color="#39A900"
+                            variant="view"
                           />
-                          {resultado.verificado && (
+                          {resultado.verificado ? (
                             <>
                               <ActionButton
                                 tooltip="Ver PDF Resultados"
                                 onClick={() => handleViewResultsPDF(resultado)}
                                 IconComponent={PictureAsPdfIcon}
-                                color="#39A900"
+                                variant="pdf"
                               />
                               <ActionButton
                                 tooltip="Descargar PDF Resultados"
                                 onClick={() => handleDownloadResultsPDF(resultado)}
                                 IconComponent={GetAppIcon}
-                                color="#39A900"
+                                variant="download"
                               />
                             </>
+                          ) : (
+                            <Chip
+                              label="En proceso"
+                              size="small"
+                              sx={{
+                                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                color: '#FFC107',
+                                border: '1px solid rgba(255, 193, 7, 0.3)',
+                                fontSize: '0.75rem',
+                                fontWeight: 'bold'
+                              }}
+                            />
                           )}
                         </Box>
                       </TableCell>
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </TableBody>            </Table>
           </TableContainer>
+          </Paper>
 
-          {pagination.total > pagination.limit && (
+          {pagination.totalPages > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
               <Pagination
                 count={pagination.totalPages}
