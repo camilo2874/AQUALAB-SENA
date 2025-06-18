@@ -34,6 +34,90 @@ const drawerWidth = 260;
 const Sidebar = () => {
   const [userRole, setUserRole] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState({
+    isOnline: true,
+    isServerConnected: true,
+    lastCheck: new Date()
+  });
+
+  // Verificar estado de conexión
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        // Verificar conexión a internet
+        const isOnline = navigator.onLine;
+        
+        // Verificar conexión al servidor (puedes ajustar la URL según tu API)
+        let isServerConnected = true;
+        try {
+          const response = await fetch('/api/health-check', { 
+            method: 'HEAD',
+            timeout: 5000 
+          });
+          isServerConnected = response.ok;
+        } catch {
+          isServerConnected = false;
+        }
+
+        setConnectionStatus({
+          isOnline,
+          isServerConnected,
+          lastCheck: new Date()
+        });
+      } catch (error) {
+        console.error('Error checking connection:', error);
+        setConnectionStatus(prev => ({
+          ...prev,
+          isServerConnected: false,
+          lastCheck: new Date()
+        }));
+      }
+    };
+
+    // Verificar conexión inicial
+    checkConnection();
+
+    // Verificar cada 30 segundos
+    const interval = setInterval(checkConnection, 30000);
+
+    // Escuchar eventos de conexión/desconexión
+    const handleOnline = () => setConnectionStatus(prev => ({ ...prev, isOnline: true }));
+    const handleOffline = () => setConnectionStatus(prev => ({ ...prev, isOnline: false }));
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Determinar color y mensaje del indicador
+  const getIndicatorStatus = () => {
+    if (!connectionStatus.isOnline) {
+      return {
+        color: "#f44336", // Rojo
+        message: "Sin conexión a internet",
+        status: "offline"
+      };
+    }
+    if (!connectionStatus.isServerConnected) {
+      return {
+        color: "#ff9800", // Naranja
+        message: "Servidor no disponible",
+        status: "server-error"
+      };
+    }
+    return {
+      color: "#4CAF50", // Verde
+      message: "Sistema conectado",
+      status: "online"
+    };
+  };
+
+  const indicatorStatus = getIndicatorStatus();
 
   useEffect(() => {
     try {
@@ -115,21 +199,47 @@ const Sidebar = () => {
                 left: 8,
                 width: 12,
                 height: 12,
-                backgroundColor: "#4CAF50",
+                backgroundColor: indicatorStatus.color,
                 borderRadius: "50%",
                 border: "2px solid #fff",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.4)",
-                animation: "pulseGlow 3s infinite, breathe 4s infinite alternate",
+                boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.4)`,
+                animation: indicatorStatus.status === 'online' 
+                  ? "pulseGlow 3s infinite, breathe 4s infinite alternate" 
+                  : indicatorStatus.status === 'offline'
+                  ? "pulseRed 2s infinite"
+                  : "pulseOrange 2s infinite",
                 cursor: "pointer",
                 "@keyframes pulseGlow": {
                   "0%": {
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)",
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)`,
                   },
                   "50%": {
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(76, 175, 80, 0.3), 0 0 0 12px rgba(76, 175, 80, 0.1)",
+                    boxShadow: `0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(76, 175, 80, 0.3), 0 0 0 12px rgba(76, 175, 80, 0.1)`,
                   },
                   "100%": {
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)",
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)`,
+                  },
+                },
+                "@keyframes pulseRed": {
+                  "0%": {
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(244, 67, 54, 0.7)`,
+                  },
+                  "50%": {
+                    boxShadow: `0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(244, 67, 54, 0.4)`,
+                  },
+                  "100%": {
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(244, 67, 54, 0.7)`,
+                  },
+                },
+                "@keyframes pulseOrange": {
+                  "0%": {
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(255, 152, 0, 0.7)`,
+                  },
+                  "50%": {
+                    boxShadow: `0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(255, 152, 0, 0.4)`,
+                  },
+                  "100%": {
+                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(255, 152, 0, 0.7)`,
                   },
                 },
                 "@keyframes breathe": {
@@ -145,10 +255,10 @@ const Sidebar = () => {
                 "&:hover": {
                   transform: "scale(1.3)",
                   transition: "transform 0.2s ease-in-out",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.3), 0 0 0 8px rgba(76, 175, 80, 0.4), 0 0 0 16px rgba(76, 175, 80, 0.1)",
+                  boxShadow: `0 4px 12px rgba(0,0,0,0.3), 0 0 0 8px ${indicatorStatus.color}40, 0 0 0 16px ${indicatorStatus.color}20`,
                 }
               }}
-              title="Sistema conectado"
+              title={`${indicatorStatus.message} - Última verificación: ${connectionStatus.lastCheck.toLocaleTimeString()}`}
             />
           </Box>
         </Toolbar>        {/* Sección de perfil: al hacer clic en la foto se abre el diálogo de edición */}
