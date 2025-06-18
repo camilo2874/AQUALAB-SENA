@@ -844,7 +844,7 @@ const Dashboard = () => {
           }
           return user.rol || "Sin Rol";
         }))];
-        // console.log("Roles únicos encontrados:", rolesUnicos);
+
 
         const clientCount = users.filter(user => {
           const roleValue = user.rol?.nombre || user.rol?.name || user.rol || "";
@@ -880,7 +880,7 @@ const Dashboard = () => {
             else if (tipo === "institucion educativa") clientsByType["institucion educativa"]++;
             else if (tipo === "aprendiz/instructor sena") clientsByType["aprendiz/instructor Sena"]++;
           }
-        });        // console.log("Estadísticas de usuarios:", { totalUsers, clientCount, adminCount, laboratoristCount, clientsByType });
+        });
 
         setUserStats({ totalUsers, clientCount, adminCount, laboratoristCount, clientsByType });
       } catch (err) {
@@ -1346,7 +1346,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (import.meta.env.MODE === 'production') {
       // eslint-disable-next-line no-console
-      console.log = () => {};
+
       // eslint-disable-next-line no-console
       console.warn = () => {};
     }
@@ -1367,7 +1367,7 @@ const Dashboard = () => {
     acc[estado] = (acc[estado] || 0) + 1;
     return acc;
   }, {});
-  console.log('Estados únicos de muestras:', estadosUnicos);
+
   if (loadingSamples || loadingUsers) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>

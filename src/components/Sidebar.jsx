@@ -33,59 +33,32 @@ const drawerWidth = 260;
 
 const Sidebar = () => {
   const [userRole, setUserRole] = useState("");
-  const [editOpen, setEditOpen] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState({
+  const [editOpen, setEditOpen] = useState(false);  const [connectionStatus, setConnectionStatus] = useState({
     isOnline: true,
-    isServerConnected: true,
     lastCheck: new Date()
   });
 
-  // Verificar estado de conexión
+  // Verificar estado de conexión a internet
   useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        // Verificar conexión a internet
-        const isOnline = navigator.onLine;
-        
-        // Verificar conexión al servidor (puedes ajustar la URL según tu API)
-        let isServerConnected = true;
-        try {
-          const response = await fetch('/api/health-check', { 
-            method: 'HEAD',
-            timeout: 5000 
-          });
-          isServerConnected = response.ok;
-        } catch {
-          isServerConnected = false;
-        }
-
-        setConnectionStatus({
-          isOnline,
-          isServerConnected,
-          lastCheck: new Date()
-        });
-      } catch (error) {
-        console.error('Error checking connection:', error);
-        setConnectionStatus(prev => ({
-          ...prev,
-          isServerConnected: false,
-          lastCheck: new Date()
-        }));
-      }
+    const updateConnectionStatus = () => {
+      setConnectionStatus({
+        isOnline: navigator.onLine,
+        lastCheck: new Date()
+      });
     };
 
     // Verificar conexión inicial
-    checkConnection();
-
-    // Verificar cada 30 segundos
-    const interval = setInterval(checkConnection, 30000);
+    updateConnectionStatus();
 
     // Escuchar eventos de conexión/desconexión
-    const handleOnline = () => setConnectionStatus(prev => ({ ...prev, isOnline: true }));
-    const handleOffline = () => setConnectionStatus(prev => ({ ...prev, isOnline: false }));
+    const handleOnline = () => updateConnectionStatus();
+    const handleOffline = () => updateConnectionStatus();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Verificar cada 10 segundos para mantener actualizada la hora de última verificación
+    const interval = setInterval(updateConnectionStatus, 10000);
 
     return () => {
       clearInterval(interval);
@@ -93,7 +66,6 @@ const Sidebar = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
   // Determinar color y mensaje del indicador
   const getIndicatorStatus = () => {
     if (!connectionStatus.isOnline) {
@@ -103,16 +75,9 @@ const Sidebar = () => {
         status: "offline"
       };
     }
-    if (!connectionStatus.isServerConnected) {
-      return {
-        color: "#ff9800", // Naranja
-        message: "Servidor no disponible",
-        status: "server-error"
-      };
-    }
     return {
       color: "#4CAF50", // Verde
-      message: "Sistema conectado",
+      message: "Conectado a internet",
       status: "online"
     };
   };
@@ -122,10 +87,8 @@ const Sidebar = () => {
   useEffect(() => {
     try {
       const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
+      if (userStr) {        const user = JSON.parse(userStr);
         const role = (user.rol || "").toLowerCase();
-        console.log("Rol del usuario obtenido:", role); // Registro para depuración
         setUserRole(role);
       }
     } catch (error) {
@@ -202,12 +165,9 @@ const Sidebar = () => {
                 backgroundColor: indicatorStatus.color,
                 borderRadius: "50%",
                 border: "2px solid #fff",
-                boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.4)`,
-                animation: indicatorStatus.status === 'online' 
+                boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.4)`,                animation: indicatorStatus.status === 'online' 
                   ? "pulseGlow 3s infinite, breathe 4s infinite alternate" 
-                  : indicatorStatus.status === 'offline'
-                  ? "pulseRed 2s infinite"
-                  : "pulseOrange 2s infinite",
+                  : "pulseRed 2s infinite",
                 cursor: "pointer",
                 "@keyframes pulseGlow": {
                   "0%": {
@@ -219,8 +179,7 @@ const Sidebar = () => {
                   "100%": {
                     boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)`,
                   },
-                },
-                "@keyframes pulseRed": {
+                },                "@keyframes pulseRed": {
                   "0%": {
                     boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(244, 67, 54, 0.7)`,
                   },
@@ -229,17 +188,6 @@ const Sidebar = () => {
                   },
                   "100%": {
                     boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(244, 67, 54, 0.7)`,
-                  },
-                },
-                "@keyframes pulseOrange": {
-                  "0%": {
-                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(255, 152, 0, 0.7)`,
-                  },
-                  "50%": {
-                    boxShadow: `0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(255, 152, 0, 0.4)`,
-                  },
-                  "100%": {
-                    boxShadow: `0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(255, 152, 0, 0.7)`,
                   },
                 },
                 "@keyframes breathe": {

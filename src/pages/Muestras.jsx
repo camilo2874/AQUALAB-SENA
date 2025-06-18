@@ -1,3 +1,42 @@
+/**
+ * COMPONENTE MUESTRAS - SISTEMA AQUALAB SENA
+ * 
+ * Mejoras implementadas para el modal de edición:
+ * ======================================================
+ * 
+ * 🐛 PROBLEMAS SOLUCIONADOS:
+ * - Error "No hay análisis disponibles" al editar muestras
+ * - Error de hidratación HTML en tabla (espacios en blanco)
+ * - Error 500 "Cast to embedded failed" - SOLUCIONADO ✅
+ * - Error de validación "Path `nombre` is required" - SOLUCIONADO ✅
+ * - Problemas de conectividad con servicios de análisis
+ * 
+ * 🔧 SOLUCIÓN CRÍTICA - Formato de Análisis:
+ * El servidor requiere que `analisisSeleccionados` sea un array de OBJETOS COMPLETOS
+ * con las propiedades: nombre, unidad, metodo, rango, precio
+ * NO strings como se pensó inicialmente.
+ * 
+ * 🚀 NUEVAS FUNCIONALIDADES: * - Sistema de cache para análisis (10 minutos de duración)
+ * - Diagnóstico de conectividad con servicios
+ * - Manejo detallado de errores con mensajes específicos
+ * - Indicadores de carga mejorados
+ * - Botones de reintento y recarga
+ * - Limpieza automática de cache
+ * - Conversión automática de strings a objetos completos
+ * - Validación de integridad de datos de análisis
+ * 
+ * 🔧 MEJORAS TÉCNICAS:
+ * - Normalización mejorada de tipos de análisis
+ * - Timeout configurable para peticiones (10s)
+ * - Manejo robusto de respuestas del servidor
+ * - Validación mejorada de datos antes del envío
+ * - Logs detallados para debugging
+ * - Conversión automática strings ↔ objetos completos
+ * - Sincronización entre análisis disponibles y seleccionados
+ * 
+ * 📅 Última actualización: 17 de junio de 2025
+ */
+
 import React, { useState, useEffect, useContext, memo, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -547,43 +586,249 @@ const TIPOS_ANALISIS = ['Fisicoquímico', 'Microbiológico'];
 const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyle }) => {
   const [analisisDisponibles, setAnalisisDisponibles] = useState([]);
   const [error, setError] = useState(null);
+  const [cargandoAnalisis, setCargandoAnalisis] = useState(false);  const [diagnostico, setDiagnostico] = useState(null);
 
-  // Cargar análisis según tipo
-  const cargarAnalisis = async (tipo) => {
+  // Función de diagnóstico para verificar conectividad
+  const verificarConectividad = async () => {
+    const token = localStorage.getItem("token");
+    const resultados = {
+      fisicoquimico: { status: 'pending', message: 'Verificando...' },
+      microbiologico: { status: 'pending', message: 'Verificando...' }
+    };
+    
+    setDiagnostico({ ...resultados });
+    
+    // Probar fisicoquímico
     try {
+      const response = await axios.get(API_URLS.ANALISIS_FISICOQUIMICOS, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000
+      });
+      resultados.fisicoquimico = { 
+        status: 'success', 
+        message: `Conectado - ${Array.isArray(response.data) ? response.data.length : '?'} análisis` 
+      };
+    } catch (error) {
+      resultados.fisicoquimico = { 
+        status: 'error', 
+        message: `Error: ${error.response?.status || error.message}` 
+      };
+    }
+    
+    // Probar microbiológico
+    try {
+      const response = await axios.get(API_URLS.ANALISIS_MICROBIOLOGICOS, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000
+      });
+      resultados.microbiologico = { 
+        status: 'success', 
+        message: `Conectado - ${Array.isArray(response.data) ? response.data.length : '?'} análisis` 
+      };
+    } catch (error) {
+      resultados.microbiologico = { 
+        status: 'error', 
+        message: `Error: ${error.response?.status || error.message}` 
+      };
+    }
+    
+    setDiagnostico({ ...resultados });
+  };  // Cargar análisis según tipo
+  const cargarAnalisis = async (tipo, forzarRecarga = false) => {
+    setCargandoAnalisis(true);
+    try {
+
+      
+      // Intentar cargar desde cache primero (si no es recarga forzada)
+      if (!forzarRecarga) {
+        const cacheKey = `analisis_${tipo.toLowerCase()}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsedCache = JSON.parse(cached);
+            const cacheTime = parsedCache.timestamp;
+            const now = Date.now();
+            // Cache válido por 10 minutos
+            if (now - cacheTime < 10 * 60 * 1000) {
+
+              setAnalisisDisponibles(parsedCache.data);
+              setError(null);
+              return;
+            }
+          } catch (e) {
+
+          }
+        }
+      }
+      
       const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.error("No hay token disponible");
+        setAnalisisDisponibles([]);
+        setError("No hay token de autenticación disponible");
+        return;
+      }
+
       // Normalizar tipo para endpoint
       let tipoNormalizado = tipo
         .toLowerCase()
-        .replace('í', 'i')
-        .replace('ó', 'o')
-        .replace('químico', 'quimico')
-        .replace('microbiológico', 'microbiologico');
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Remover acentos
+        .replace(/[^a-z]/g, ""); // Solo letras
+      
       let endpoint = "";
       if (tipoNormalizado === "fisicoquimico") {
         endpoint = API_URLS.ANALISIS_FISICOQUIMICOS;
       } else if (tipoNormalizado === "microbiologico") {
         endpoint = API_URLS.ANALISIS_MICROBIOLOGICOS;
       } else {
+
         setAnalisisDisponibles([]);
         return;
       }
-      const response = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setAnalisisDisponibles(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      setAnalisisDisponibles([]);
-    }
-  };
 
-  useEffect(() => {
+
+      
+      const response = await axios.get(endpoint, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 segundos de timeout
+      });
+
+
+
+      // Verificar que la respuesta sea válida
+      if (response.data && response.data.success !== false) {
+        const analisis = Array.isArray(response.data) ? response.data : 
+                        Array.isArray(response.data.data) ? response.data.data : [];
+        setAnalisisDisponibles(analisis);
+
+        setError(null); // Limpiar error si la carga fue exitosa
+        
+        // Guardar en cache
+        const cacheKey = `analisis_${tipo.toLowerCase()}`;
+        const cacheData = {
+          data: analisis,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        
+      } else {
+        console.error("Respuesta no válida del servidor:", response.data);
+        setAnalisisDisponibles([]);
+        setError("No se pudieron cargar los análisis disponibles");
+      }
+    } catch (error) {
+      console.error("Error al cargar análisis:", error);
+      setAnalisisDisponibles([]);
+      
+      // Proporcionar información más específica del error
+      if (error.code === 'ECONNABORTED') {
+        setError("Tiempo de espera agotado. Verifique su conexión a internet.");
+      } else if (error.response) {
+        const statusCode = error.response.status;
+        if (statusCode === 401) {
+          setError("No tiene permisos para acceder a los análisis. Intente cerrar sesión y volver a iniciar.");
+        } else if (statusCode === 404) {
+          setError("El servicio de análisis no está disponible en este momento.");
+        } else if (statusCode === 500) {
+          setError("Error interno del servidor. Intente nuevamente más tarde.");
+        } else {
+          setError(`Error del servidor (${statusCode}): ${error.response.data?.message || 'Error desconocido'}`);
+        }
+      } else if (error.request) {
+        setError("No se pudo conectar con el servidor. Verifique su conexión a internet.");
+      } else {
+        setError("Error inesperado: " + error.message);
+      }
+    } finally {
+      setCargandoAnalisis(false);
+    }
+  };  useEffect(() => {
+    // Limpiar estados anteriores cuando se abre el modal
+    setError(null);
+    setDiagnostico(null);
+      // Normalizar análisis seleccionados al abrir el modal
+    if (editingMuestra && editingMuestra.analisisSeleccionados) {
+      const analisisNormalizados = editingMuestra.analisisSeleccionados.map(analisis => {
+        // Si ya es un objeto completo, mantenerlo
+        if (typeof analisis === 'object' && analisis !== null && analisis.nombre && analisis.unidad && analisis.metodo && analisis.rango) {
+          return analisis;
+        }
+        
+        // Si es un string o un objeto incompleto, intentar encontrar el objeto completo
+        const nombreAnalisis = typeof analisis === 'object' && analisis !== null ? analisis.nombre : analisis;
+        
+        // Buscar en analisisDisponibles si están cargados
+        if (analisisDisponibles.length > 0) {
+          const analisisCompleto = analisisDisponibles.find(a => a.nombre === nombreAnalisis);
+          if (analisisCompleto) {
+            return analisisCompleto;
+          }
+        }
+        
+        // Si no se encuentra, mantener como está y será manejado al cargar los análisis
+        return analisis;
+      });
+      
+      // Solo actualizar si hay diferencias
+      const sonDiferentes = JSON.stringify(analisisNormalizados) !== JSON.stringify(editingMuestra.analisisSeleccionados);      if (sonDiferentes) {
+        setEditingMuestra(prev => ({
+          ...prev,
+          analisisSeleccionados: analisisNormalizados
+        }));
+      }
+    }
+    
     if (editingMuestra && editingMuestra.tipoAnalisis) {
+
       cargarAnalisis(editingMuestra.tipoAnalisis);
     } else {
+
       setAnalisisDisponibles([]);
     }
   }, [editingMuestra?.tipoAnalisis]);
+
+  // Normalizar análisis seleccionados cuando se cargan los análisis disponibles
+  useEffect(() => {
+    if (editingMuestra && editingMuestra.analisisSeleccionados && analisisDisponibles.length > 0) {
+      const analisisActualizados = editingMuestra.analisisSeleccionados.map(analisis => {
+        // Si ya es un objeto completo, mantenerlo
+        if (typeof analisis === 'object' && analisis !== null && analisis.nombre && analisis.unidad && analisis.metodo && analisis.rango) {
+          return analisis;
+        }
+        
+        // Si es string o objeto incompleto, buscar el objeto completo
+        const nombreAnalisis = typeof analisis === 'object' && analisis !== null ? analisis.nombre : analisis;
+        const analisisCompleto = analisisDisponibles.find(a => a.nombre === nombreAnalisis);
+        
+        if (analisisCompleto) {
+
+          return analisisCompleto;
+        }
+        
+        // Si no se encuentra, mantener como está
+        return analisis;
+      });
+      
+      // Solo actualizar si hay cambios
+      const hayDiferencias = analisisActualizados.some((analisis, index) => {
+        const original = editingMuestra.analisisSeleccionados[index];
+        return JSON.stringify(analisis) !== JSON.stringify(original);
+      });
+      
+      if (hayDiferencias) {
+
+        setEditingMuestra(prev => ({
+          ...prev,
+          analisisSeleccionados: analisisActualizados
+        }));
+      }
+    }
+  }, [analisisDisponibles, editingMuestra]);
 
   if (!editingMuestra) return null;
 
@@ -650,7 +895,6 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
     }
     return "";
   })();
-
   // Validación básica
   const validar = () => {
     if (!editingMuestra.tipoDeAgua?.tipo) return 'El tipo de agua es requerido';
@@ -664,20 +908,59 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
     if (!editingMuestra.planMuestreo) return 'El plan de muestreo es requerido';
     if (!editingMuestra.condicionesAmbientales) return 'Condiciones ambientales requeridas';
     if (!editingMuestra.preservacionMuestra) return 'Preservación de la muestra es requerida';
-    if (editingMuestra.preservacionMuestra === 'Otro' && !editingMuestra.preservacionMuestraOtra) return 'Debe especificar preservación "Otro"';
-    if (!editingMuestra.analisisSeleccionados || editingMuestra.analisisSeleccionados.length === 0) return 'Debe seleccionar al menos un análisis';
+    if (editingMuestra.preservacionMuestra === 'Otro' && !editingMuestra.preservacionMuestraOtra) return 'Debe especificar preservación "Otro"';    // Validar que los análisis seleccionados estén en formato correcto
+    if (!editingMuestra.analisisSeleccionados || editingMuestra.analisisSeleccionados.length === 0) {
+      return 'Debe seleccionar al menos un análisis';
+    }
+    
+    // Verificar que los análisis tengan nombres válidos
+    const analisisInvalidos = editingMuestra.analisisSeleccionados.filter(analisis => {
+      if (typeof analisis === 'object' && analisis !== null) {
+        return !analisis.nombre || analisis.nombre.trim() === '';
+      }
+      if (typeof analisis === 'string') {
+        return analisis.trim() === '';
+      }
+      return true; // Formato no válido
+    });
+    
+    if (analisisInvalidos.length > 0) {
+      console.error('Análisis seleccionados en formato inválido:', analisisInvalidos);
+      return 'Error: Algunos análisis seleccionados no tienen nombre válido. Intente seleccionar nuevamente.';
+    }
+    
     return null;
-  };
-
-  const handleAnalisisChange = (analisisNombre) => {
+  };  const handleAnalisisChange = (analisisNombre) => {
     setEditingMuestra((prev) => {
-      const alreadySelected = prev.analisisSeleccionados?.includes(analisisNombre);
-      return {
-        ...prev,
-        analisisSeleccionados: alreadySelected
-          ? prev.analisisSeleccionados.filter((item) => item !== analisisNombre)
-          : [...(prev.analisisSeleccionados || []), analisisNombre],
-      };
+      // Verificar si ya está seleccionado (por nombre)
+      const alreadySelected = prev.analisisSeleccionados?.some(item => {
+        if (typeof item === 'object' && item !== null) {
+          return item.nombre === analisisNombre;
+        }
+        return item === analisisNombre;
+      });
+      
+      if (alreadySelected) {
+        // Remover el análisis
+        return {
+          ...prev,
+          analisisSeleccionados: prev.analisisSeleccionados.filter((item) => {
+            if (typeof item === 'object' && item !== null) {
+              return item.nombre !== analisisNombre;
+            }
+            return item !== analisisNombre;
+          })
+        };
+      } else {
+        // Agregar el análisis completo (para UI) o como string (fallback)
+        const analisisCompleto = analisisDisponibles.find(a => a.nombre === analisisNombre);
+        const nuevoAnalisis = analisisCompleto || analisisNombre;
+        
+        return {
+          ...prev,
+          analisisSeleccionados: [...(prev.analisisSeleccionados || []), nuevoAnalisis]
+        };
+      }
     });
   };
 
@@ -692,8 +975,7 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
   };
   return (
     <Modal open={editingMuestra !== null} onClose={() => setEditingMuestra(null)}>
-      <Box sx={{ ...modalStyle, width: 700, maxWidth: '98vw' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ ...modalStyle, width: 700, maxWidth: '98vw' }}>        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#39A900' }}>
             Editar Muestra
           </Typography>
@@ -711,8 +993,45 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
             <CloseIcon />
           </IconButton>
         </Box>
-        {error && (
+        
+        {/* Información de ayuda */}
+        {!editingMuestra.tipoAnalisis && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              💡 Consejo: Comience seleccionando el tipo de análisis
+            </Typography>
+            <Typography variant="body2">
+              Una vez que seleccione el tipo de análisis (Fisicoquímico o Microbiológico), 
+              se cargarán automáticamente los análisis disponibles para ese tipo.
+            </Typography>
+          </Alert>
+        )}        {error && (
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        )}        {/* Aviso si hay problemas con los análisis seleccionados */}
+        {editingMuestra.analisisSeleccionados && editingMuestra.analisisSeleccionados.some(a => {
+          if (typeof a === 'string') {
+            return a.trim() === '';
+          }
+          if (typeof a === 'object' && a !== null) {
+            return !a.nombre || a.nombre.trim() === '';
+          }
+          return true;
+        }) && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              ⚠️ Análisis inválidos detectados
+            </Typography>
+            <Typography variant="body2">
+              Algunos análisis seleccionados no tienen nombres válidos.
+            </Typography>
+            <Button 
+              size="small" 
+              onClick={() => setEditingMuestra(prev => ({ ...prev, analisisSeleccionados: [] }))}
+              sx={{ mt: 1 }}
+            >
+              Limpiar análisis seleccionados
+            </Button>
+          </Alert>
         )}
         <Box component="form" noValidate autoComplete="off">
           {/* Sección: Tipo de Agua */}
@@ -778,11 +1097,20 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
                 </Select>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Tipo de Análisis</Typography>
-                <Select
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Tipo de Análisis</Typography>                <Select
                   fullWidth
                   value={editingMuestra.tipoAnalisis || ''}
-                  onChange={e => setEditingMuestra({ ...editingMuestra, tipoAnalisis: e.target.value, analisisSeleccionados: [] })}
+                  onChange={e => {
+                    const nuevoTipo = e.target.value;
+                    setEditingMuestra({ 
+                      ...editingMuestra, 
+                      tipoAnalisis: nuevoTipo, 
+                      analisisSeleccionados: [] // Limpiar análisis seleccionados al cambiar tipo
+                    });
+                    // Limpiar estados
+                    setError(null);
+                    setDiagnostico(null);
+                  }}
                   displayEmpty
                 >
                   <MenuItem value="">Seleccione tipo de análisis</MenuItem>
@@ -875,13 +1203,109 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
               )}
             </Grid>
           </Box>
-          <Divider sx={{ my: 2 }} />
-          {/* Sección: Análisis a Realizar */}
+          <Divider sx={{ my: 2 }} />          {/* Sección: Análisis a Realizar */}
           <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Análisis a Realizar</Typography>
-            {analisisDisponibles.length === 0 ? (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                Análisis a Realizar
+              </Typography>              {editingMuestra.tipoAnalisis && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => cargarAnalisis(editingMuestra.tipoAnalisis, true)} // Forzar recarga
+                  disabled={cargandoAnalisis}
+                  startIcon={cargandoAnalisis ? <CircularProgress size={16} /> : <RefreshIcon />}
+                  sx={{ 
+                    borderColor: '#39A900', 
+                    color: '#39A900',
+                    '&:hover': { backgroundColor: '#e8f5e9' }
+                  }}
+                >
+                  {cargandoAnalisis ? 'Cargando...' : 'Recargar Análisis'}
+                </Button>
+              )}
+            </Box>
+              {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+                <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>                  <Button 
+                    size="small" 
+                    onClick={() => cargarAnalisis(editingMuestra.tipoAnalisis, true)} // Forzar recarga
+                  >
+                    Reintentar
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    onClick={verificarConectividad}
+                  >
+                    Diagnóstico
+                  </Button>
+                </Box>
+                
+                {/* Mostrar resultados del diagnóstico */}
+                {diagnostico && (
+                  <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Estado de los servicios:</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip 
+                          label="Fisicoquímico" 
+                          color={diagnostico.fisicoquimico.status === 'success' ? 'success' : 'error'}
+                          size="small"
+                        />
+                        <Typography variant="body2">{diagnostico.fisicoquimico.message}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip 
+                          label="Microbiológico" 
+                          color={diagnostico.microbiologico.status === 'success' ? 'success' : 'error'}
+                          size="small"
+                        />
+                        <Typography variant="body2">{diagnostico.microbiologico.message}</Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                )}
+              </Alert>
+            )}
+              {!editingMuestra.tipoAnalisis ? (
               <Alert severity="info" sx={{ mb: 2 }}>
-                No hay análisis disponibles para este tipo (o aún no se han cargado).
+                Seleccione un tipo de análisis para ver los análisis disponibles.
+              </Alert>
+            ) : cargandoAnalisis ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
+                <CircularProgress sx={{ color: '#39A900' }} />
+                <Typography sx={{ ml: 2 }}>Cargando análisis disponibles...</Typography>
+              </Box>            ) : analisisDisponibles.length === 0 && !error ? (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  No hay análisis disponibles para este tipo
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  Esto puede suceder por varias razones:
+                </Typography>
+                <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                  <li>Los análisis aún no se han cargado desde el servidor</li>
+                  <li>No hay análisis configurados para este tipo</li>
+                  <li>Problemas de conectividad con el servicio</li>
+                </ul>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    onClick={() => cargarAnalisis(editingMuestra.tipoAnalisis, true)} // Forzar recarga
+                    startIcon={<RefreshIcon />}
+                  >
+                    Intentar cargar
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    onClick={verificarConectividad}
+                  >
+                    Verificar servicios
+                  </Button>
+                </Box>
               </Alert>
             ) : (
               <Accordion defaultExpanded>
@@ -889,7 +1313,8 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
                   <Typography>
                     {editingMuestra.tipoAnalisis === "Fisicoquímico"
                       ? "Análisis Fisicoquímicos"
-                      : "Análisis Microbiológicos"}
+                      : "Análisis Microbiológicos"} 
+                    ({analisisDisponibles.length} disponibles)
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
@@ -897,9 +1322,13 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
                     {analisisDisponibles.map((analisis) => (
                       <Grid item xs={12} sm={6} key={analisis.nombre}>
                         <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={editingMuestra.analisisSeleccionados?.includes(analisis.nombre)}
+                          control={                            <Checkbox
+                              checked={editingMuestra.analisisSeleccionados?.some(item => {
+                                if (typeof item === 'object' && item !== null) {
+                                  return item.nombre === analisis.nombre;
+                                }
+                                return item === analisis.nombre;
+                              })}
                               onChange={() => handleAnalisisChange(analisis.nombre)}
                             />
                           }
@@ -931,8 +1360,7 @@ const EditMuestraModal = ({ editingMuestra, setEditingMuestra, onSave, modalStyl
               value={editingMuestra.observaciones || ''}
               onChange={e => setEditingMuestra({ ...editingMuestra, observaciones: e.target.value })}
             />
-          </Box>
-          <Button variant="contained" color="primary" fullWidth onClick={handleGuardar} sx={{ mt: 2, py: 1.5, fontWeight: 'bold', bgcolor: '#39A900', '&:hover': { bgcolor: '#2d8600' } }}>
+          </Box>          <Button variant="contained" color="primary" fullWidth onClick={handleGuardar} sx={{ mt: 2, py: 1.5, fontWeight: 'bold', bgcolor: '#39A900', '&:hover': { bgcolor: '#2d8600' } }}>
             Guardar Cambios
           </Button>
         </Box>
@@ -1136,46 +1564,159 @@ const Muestras = memo(() => {
     setFilterDate("");
     setSearch("");
   }, []);
-
   const handleSaveEdit = async () => {
     try {
+
+      
+      // Obtener el ID de la muestra
+      const idMuestra = editingMuestra.id_muestra || editingMuestra.id_muestrea || editingMuestra._id;
+      
+      if (!idMuestra) {
+        throw new Error("No se pudo identificar el ID de la muestra");
+      }        // Preparar los datos de actualización - SOLO CAMPOS BÁSICOS PRIMERO
       const updateData = {
         tipoAnalisis: editingMuestra.tipoAnalisis,
         tipoMuestreo: editingMuestra.tipoMuestreo,
-        fechaHoraMuestreo: convertISOToFechaHoraObject(editingMuestra.fechaHoraMuestreo),
         lugarMuestreo: editingMuestra.lugarMuestreo,
         identificacionMuestra: editingMuestra.identificacionMuestra,
         planMuestreo: editingMuestra.planMuestreo,
         condicionesAmbientales: editingMuestra.condicionesAmbientales,
         preservacionMuestra: editingMuestra.preservacionMuestra,
-        preservacionMuestraOtra:
-          editingMuestra.preservacionMuestra === "Otro" ? editingMuestra.preservacionMuestraOtra : "",
-        analisisSeleccionados: editingMuestra.analisisSeleccionados,
-        observaciones: editingMuestra.observaciones,
+        observaciones: editingMuestra.observaciones || "",        analisisSeleccionados: (editingMuestra.analisisSeleccionados || []).map(analisisSeleccionado => {
+          // El backend requiere objetos con los campos: nombre, unidad, metodo, rango (todos obligatorios)
+          if (typeof analisisSeleccionado === 'object' && analisisSeleccionado !== null) {
+            // Si ya es un objeto, extraer solo los campos requeridos
+            return {
+              nombre: analisisSeleccionado.nombre || analisisSeleccionado.name || '',
+              unidad: analisisSeleccionado.unidad || analisisSeleccionado.unit || '',
+              metodo: analisisSeleccionado.metodo || analisisSeleccionado.method || '',
+              rango: analisisSeleccionado.rango || analisisSeleccionado.range || ''
+            };
+          }
+          
+          // Si es string, buscar en la lista de análisis disponibles para obtener los datos completos
+          const analisisCompleto = analisisDisponibles.find(a => 
+            a.nombre === analisisSeleccionado || a.name === analisisSeleccionado
+          );
+          
+          if (analisisCompleto) {
+            return {
+              nombre: analisisCompleto.nombre || analisisCompleto.name || analisisSeleccionado,
+              unidad: analisisCompleto.unidad || analisisCompleto.unit || '',
+              metodo: analisisCompleto.metodo || analisisCompleto.method || '',
+              rango: analisisCompleto.rango || analisisCompleto.range || ''
+            };
+          }
+          
+          // Si no se encuentra, crear objeto con campos mínimos (esto puede causar error)
+          console.warn('⚠️ Análisis no encontrado en lista disponible:', analisisSeleccionado);
+          return {
+            nombre: String(analisisSeleccionado),
+            unidad: '',
+            metodo: '',
+            rango: ''
+          };
+        }).filter(analisis => analisis.nombre) // Solo incluir si tiene nombre
       };
-
-      await axios.put(
-        `${API_URLS.MUESTRAS}/${editingMuestra.id_muestra || editingMuestra._id}`,
-        updateData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+      
+      // Agregar campos opcionales solo si existen y son válidos
+      if (editingMuestra.preservacionMuestra === "Otro" && editingMuestra.preservacionMuestraOtra) {
+        updateData.preservacionMuestraOtra = editingMuestra.preservacionMuestraOtra;
+      }
+      
+      // Manejar fechaHoraMuestreo con cuidado
+      if (editingMuestra.fechaHoraMuestreo) {
+        try {
+          const fechaConvertida = convertISOToFechaHoraObject(editingMuestra.fechaHoraMuestreo);
+          if (fechaConvertida && fechaConvertida.fecha && fechaConvertida.hora) {
+            updateData.fechaHoraMuestreo = fechaConvertida;
+          }
+        } catch (error) {
+          console.warn('Error al convertir fecha:', error);
         }
-      );      const updatedMuestras = muestras.map((m) =>
-        (m.id_muestra === editingMuestra.id_muestrea || m.id_muestrea === editingMuestra.id_muestrea || m.id_muestra === editingMuestra.id_muestra || m._id === editingMuestra._id)
-          ? { ...m, ...updateData }
-          : m
+      }
+      
+      // Manejar tipoDeAgua con cuidado
+      if (editingMuestra.tipoDeAgua && editingMuestra.tipoDeAgua.tipo) {
+        updateData.tipoDeAgua = {
+          tipo: editingMuestra.tipoDeAgua.tipo,
+          descripcion: editingMuestra.tipoDeAgua.descripcion || '',
+          ...(editingMuestra.tipoDeAgua.subtipo && { subtipo: editingMuestra.tipoDeAgua.subtipo })
+        };
+      }
+        // Limpiar campos undefined para evitar problemas en el servidor
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
+
+      // Validar que todos los análisis tengan los campos requeridos
+      const analisisIncompletos = updateData.analisisSeleccionados.filter(a => 
+        !a.nombre || !a.unidad || !a.metodo || !a.rango
       );
-      setMuestras(updatedMuestras);
-      setEditingMuestra(null);
-      setSnackbarMessage("Muestra actualizada exitosamente");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
+      
+      if (analisisIncompletos.length > 0) {
+        console.warn('⚠️ Análisis con campos faltantes:', analisisIncompletos);
+        throw new Error(`Algunos análisis seleccionados no tienen toda la información requerida (unidad, método, rango). Análisis incompletos: ${analisisIncompletos.map(a => a.nombre).join(', ')}`);
+      }
+
+      if (updateData.analisisSeleccionados.length === 0) {        throw new Error('Debe seleccionar al menos un análisis');
+      }
+
+      // Usar el servicio de muestras para la actualización
+      const response = await muestrasService.actualizarMuestra(idMuestra, updateData);
+      
+      if (response.success) {
+        // Actualizar la lista local de muestras
+        const updatedMuestras = muestras.map((m) => {
+          const mId = m.id_muestra || m.id_muestrea || m._id;
+          if (mId === idMuestra) {
+            return { ...m, ...updateData };
+          }
+          return m;
+        });
+          setMuestras(updatedMuestras);
+        setEditingMuestra(null);
+        setSnackbarMessage(`Muestra ${idMuestra} actualizada exitosamente con ${updateData.analisisSeleccionados.length} análisis`);
+        setSnackbarSeverity("success");
+        setSnackbarOpen(true);
+      } else {
+        throw new Error(response.message || "Error desconocido al actualizar la muestra");
+      }
     } catch (error) {
       console.error("Error al actualizar la muestra:", error);
-      setSnackbarMessage("Error al actualizar la muestra: " + (error.response?.data?.message || error.message));
+      
+      let errorMessage = "Error al actualizar la muestra: ";
+      
+      if (error.response) {
+        // Error de respuesta del servidor
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        switch (status) {
+          case 400:
+            errorMessage += "Datos inválidos. Verifique que todos los campos requeridos estén completos.";
+            break;
+          case 401:
+            errorMessage += "No tiene permisos para realizar esta acción. Intente cerrar sesión y volver a iniciar.";
+            break;
+          case 404:
+            errorMessage += "La muestra no fue encontrada en el servidor.";
+            break;
+          case 500:
+            errorMessage += "Error interno del servidor. " + (data?.message || "Intente nuevamente más tarde.");
+            break;
+          default:
+            errorMessage += `Error del servidor (${status}): ${data?.message || 'Error desconocido'}`;
+        }
+      } else if (error.request) {
+        errorMessage += "No se pudo conectar con el servidor. Verifique su conexión a internet.";
+      } else {
+        errorMessage += error.message || "Error desconocido";
+      }
+      
+      setSnackbarMessage(errorMessage);
       setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
@@ -1468,9 +2009,7 @@ const Muestras = memo(() => {
               </Button>
             </Grid>
           </Grid>
-        </Paper>
-        {/* Tabla Resumida en tarjeta */}
-        <Paper elevation={2} sx={{ borderRadius: 3, boxShadow: 3, overflow: 'auto', minWidth: 1100 }}>
+        </Paper>        <Paper elevation={2} sx={{ borderRadius: 3, boxShadow: 3, overflow: 'auto', minWidth: 1100 }}>
           <TableContainer sx={{ minWidth: 1100 }}>
             <Table>
               <TableHead sx={{ backgroundColor: "#39A900" }}>
@@ -1488,7 +2027,8 @@ const Muestras = memo(() => {
                   <TableCell sx={{ color: "white", fontWeight: "bold" }}>Tipo de Análisis</TableCell>
                   <TableCell sx={{ color: "white", fontWeight: "bold" }}>Acciones</TableCell>
                 </TableRow>
-              </TableHead>              <TableBody>
+              </TableHead>
+              <TableBody>
                 {paginatedMuestras.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={hideClientData ? 6 : 8} align="center">

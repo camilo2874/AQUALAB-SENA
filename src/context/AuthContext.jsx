@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
     const cachedPerfil = cacheManager.get(cacheKey);
     
     if (cachedPerfil) {
-      console.log("Perfil obtenido de caché");
+
       return cachedPerfil;
     }
     
@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }) => {
     if (!auth.token || !auth.user || !auth.isAuthenticated) return;
 
     if (isPerfilManuallyUpdated) {
-      console.log("Perfil ya actualizado manualmente, no se hace fetch.");
+
       return;
     }
 
@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    console.log("Verificando perfil de usuario...");
+
     fetchUserProfile(userId, auth.token).then(data => {
       if (data) setPerfil(data);
     });
@@ -132,7 +132,7 @@ export const AuthProvider = ({ children }) => {
 
   // Función para actualizar el perfil directamente - optimizada
   const updatePerfil = useCallback((newPerfil) => {
-    console.log("Actualizando perfil manualmente");
+
     setPerfil(newPerfil);
     setIsPerfilManuallyUpdated(true);
     localStorage.setItem("isPerfilManuallyUpdated", "true");
