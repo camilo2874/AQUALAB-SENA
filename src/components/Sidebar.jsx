@@ -96,52 +96,158 @@ const Sidebar = () => {
 
   const filteredMenuItems = menuItems.filter(shouldShowMenuItem);
 
-  const drawerContent = (
-    <Box
+  const drawerContent = (    <Box
       sx={{
         height: "100%",
-        backgroundColor: "#fff",
+        background: "linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
       }}
     >
-      <Box>
-        <Toolbar>
-          <Box sx={{ width: "100%", textAlign: "center", p: 1 }}>
-            <img src={senaLogo} alt="Logo SENA" width="80" />
+      <Box>        <Toolbar>
+          <Box sx={{ width: "100%", textAlign: "center", p: 1, position: "relative" }}>
+            <img src={senaLogo} alt="Logo SENA" width="80" />            {/* Indicador de estado */}
+            <Box
+              sx={{
+                position: "absolute",
+                top: 8,
+                left: 8,
+                width: 12,
+                height: 12,
+                backgroundColor: "#4CAF50",
+                borderRadius: "50%",
+                border: "2px solid #fff",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.4)",
+                animation: "pulseGlow 3s infinite, breathe 4s infinite alternate",
+                cursor: "pointer",
+                "@keyframes pulseGlow": {
+                  "0%": {
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)",
+                  },
+                  "50%": {
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 0 0 6px rgba(76, 175, 80, 0.3), 0 0 0 12px rgba(76, 175, 80, 0.1)",
+                  },
+                  "100%": {
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2), 0 0 0 0 rgba(76, 175, 80, 0.7), 0 0 0 0 rgba(76, 175, 80, 0.4)",
+                  },
+                },
+                "@keyframes breathe": {
+                  "0%": {
+                    backgroundColor: "#4CAF50",
+                    transform: "scale(1)",
+                  },
+                  "100%": {
+                    backgroundColor: "#66BB6A",
+                    transform: "scale(1.05)",
+                  },
+                },
+                "&:hover": {
+                  transform: "scale(1.3)",
+                  transition: "transform 0.2s ease-in-out",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.3), 0 0 0 8px rgba(76, 175, 80, 0.4), 0 0 0 16px rgba(76, 175, 80, 0.1)",
+                }
+              }}
+              title="Sistema conectado"
+            />
           </Box>
-        </Toolbar>
-
-        {/* Sección de perfil: al hacer clic en la foto se abre el diálogo de edición */}
-        <Box sx={{ p: 2, textAlign: "center" }}>
-          <UserProfile onEdit={() => setEditOpen(true)} />
+        </Toolbar>        {/* Sección de perfil: al hacer clic en la foto se abre el diálogo de edición */}
+        <Box 
+          sx={{ 
+            p: 2, 
+            textAlign: "center",
+            borderRadius: 2,
+            transition: "all 0.3s ease-in-out",
+            cursor: "pointer",
+            "&:hover": {
+              backgroundColor: "rgba(57, 169, 0, 0.05)",
+              transform: "translateY(-2px)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+              "& .user-profile": {
+                transform: "scale(1.05)",
+              }
+            }
+          }}
+          onClick={() => setEditOpen(true)}
+        >
+          <Box className="user-profile" sx={{ transition: "transform 0.3s ease-in-out" }}>
+            <UserProfile onEdit={() => setEditOpen(true)} />
+          </Box>
         </Box>
 
-        <Divider sx={{ mb: 1 }} />
-
-        <List>
-          {filteredMenuItems.map((item) => (            <ListItem key={item.text} disablePadding sx={{ m: 1 }}>
-              <ListItemButton
+        {/* Separador elegante con gradiente */}
+        <Box sx={{ px: 2, mb: 2 }}>
+          <Box
+            sx={{
+              height: "1px",
+              background: "linear-gradient(90deg, transparent 0%, #39A900 50%, transparent 100%)",
+              position: "relative",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                top: "-2px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "6px",
+                height: "6px",
+                backgroundColor: "#39A900",
+                borderRadius: "50%",
+                boxShadow: "0 0 8px rgba(57, 169, 0, 0.4)",
+              }
+            }}
+          />
+        </Box>        <List>
+          {filteredMenuItems.map((item, index) => (            <ListItem 
+              key={item.text} 
+              disablePadding 
+              sx={{ 
+                m: 1,
+                opacity: 0,
+                transform: "translateX(-20px)",
+                animation: `slideIn 0.5s ease-out ${index * 0.1}s forwards`,
+                "@keyframes slideIn": {
+                  "0%": {
+                    opacity: 0,
+                    transform: "translateX(-20px)",
+                  },
+                  "100%": {
+                    opacity: 1,
+                    transform: "translateX(0)",
+                  },
+                }
+              }}
+            ><ListItemButton
                 component={NavLink}
                 to={item.path}
                 sx={{
                   borderRadius: 2,
                   px: 2,
                   py: 1,
-                  transition: "all 0.2s ease-in-out",
+                  transition: "all 0.3s ease-in-out",
                   "&:hover": {
                     backgroundColor: "#f0f0f0",
                     transform: "scale(1.02)",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    "& .MuiListItemIcon-root": {
+                      color: "#39A900",
+                      transform: "scale(1.1) rotate(5deg)",
+                    }
                   },
                   "&.active": {
                     backgroundColor: "#E0F2F1",
                     boxShadow: "inset 3px 0 0 #39A900",
+                    "& .MuiListItemIcon-root": {
+                      color: "#39A900",
+                    }
                   }
                 }}
               >
-                <ListItemIcon sx={{ color: "inherit" }}>
+                <ListItemIcon 
+                  sx={{ 
+                    color: "#666",
+                    transition: "all 0.3s ease-in-out",
+                  }}
+                >
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
@@ -162,15 +268,14 @@ const Sidebar = () => {
     </Box>
   );
 
-  return (
-    <Drawer
+  return (    <Drawer
       variant="permanent"
       sx={{
         "& .MuiDrawer-paper": {
           width: drawerWidth,
           borderRight: "none",
           boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
-          backgroundColor: "#fff",
+          background: "linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)",
         },
       }}
       open
