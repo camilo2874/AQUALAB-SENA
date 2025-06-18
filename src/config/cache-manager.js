@@ -44,7 +44,6 @@ class CacheManager {
   invalidate(key) {
     delete this.cache[key];
   }
-
   /**
    * Elimina todas las claves que inician con cierto prefijo
    * @param {string} prefix - Prefijo de claves a eliminar
@@ -55,6 +54,13 @@ class CacheManager {
         delete this.cache[key];
       }
     });
+  }
+
+  /**
+   * Limpia completamente toda la caché
+   */
+  invalidateAll() {
+    this.cache = {};
   }
 }
 

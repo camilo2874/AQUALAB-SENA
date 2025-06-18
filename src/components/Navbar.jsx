@@ -37,10 +37,17 @@ const Navbar = () => {
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
-
   const handleLogout = () => {
+    // Cerrar el menú primero
+    handleMenuClose();
+    
+    // Ejecutar logout
     logout();
-    navigate("/login");
+    
+    // Navegar de forma segura
+    setTimeout(() => {
+      navigate("/login", { replace: true });
+    }, 100);
   };
 
   return (

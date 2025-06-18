@@ -143,13 +143,14 @@ export const AuthProvider = ({ children }) => {
       cacheManager.set(`perfil:${userId}`, newPerfil, API_CONFIG.CACHE_TTL.USER_PROFILE);
     }
   }, [auth.user]);
-
   // Función logout
   const logout = () => {
+    // Limpiar localStorage primero
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("isPerfilManuallyUpdated");
 
+    // Limpiar estado del contexto
     setAuth({
       user: null,
       token: null,
@@ -159,6 +160,9 @@ export const AuthProvider = ({ children }) => {
 
     setPerfil(null);
     setIsPerfilManuallyUpdated(false);
+    
+    // Limpiar caché
+    cacheManager.invalidateAll();
   };
 
   return (
