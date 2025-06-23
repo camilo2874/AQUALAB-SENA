@@ -746,192 +746,612 @@ const ListaResultados = memo(() => {
                 }}
               />
             </Box>
-          )}
-
-          <Modal
+          )}          <Modal
             open={selectedResult !== null}
             onClose={() => setSelectedResult(null)}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <Box sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 800,
+              width: { xs: '95%', sm: '90%', md: 900 },
+              maxWidth: 1000,
               bgcolor: 'background.paper',
-              boxShadow: 24,
-              p: 4,
-              borderRadius: 2,
-              maxHeight: '90vh',
+              borderRadius: 4,
+              maxHeight: '95vh',
               overflowY: 'auto',
-              border: '2px solid #39A900'
+              position: 'relative',
+              background: 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15)',
+              border: '1px solid rgba(57, 169, 0, 0.1)',
             }}>
               {selectedResult && (
                 <>
-                  <Typography variant="h5" gutterBottom sx={{ color: '#39A900', textAlign: 'center', fontWeight: 'bold' }}>
-                    Detalles del Resultado
-                  </Typography>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12}>
-                      <Paper sx={{ p: 2, bgcolor: '#f5f5f5', borderLeft: '5px solid #39A900' }}>
-                        <Typography variant="h6" gutterBottom sx={{ color: '#39A900', fontWeight: 'bold' }}>
-                          Información General
+                  {/* Header con gradiente y botón de cerrar */}
+                  <Box sx={{
+                    background: 'linear-gradient(135deg, #39A900 0%, #4CAF50 100%)',
+                    borderRadius: '16px 16px 0 0',
+                    p: 3,
+                    position: 'relative',
+                    color: 'white',
+                    overflow: 'hidden',
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      width: '100px',
+                      height: '100px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '50%',
+                      transform: 'translate(30px, -30px)',
+                    },
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      width: '60px',
+                      height: '60px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: '50%',
+                      transform: 'translate(-20px, 20px)',
+                    }
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="h4" sx={{ 
+                          fontWeight: 'bold', 
+                          mb: 1,
+                          textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                          Detalles del Análisis
                         </Typography>
-                        <Grid container spacing={2}>
-                          <Grid item xs={6}>
-                            <Typography><strong>ID Muestra:</strong> {selectedResult.idMuestra}</Typography>
-                            <Typography><strong>Cliente:</strong> {selectedResult.cliente?.nombre || 'Sin nombre'}</Typography>
-                            <Typography><strong>Fecha:</strong> {formatearFecha(selectedResult.fechaHoraMuestreo)}</Typography>
-                          </Grid>
-                          <Grid item xs={6}>
-                            <Typography><strong>Estado:</strong> <span style={{ color: selectedResult.verificado ? '#39A900' : '#1976D2', fontWeight: 'bold' }}>{selectedResult.verificado ? "Finalizada" : "En análisis"}</span></Typography>
-                            <Typography><strong>Laboratorista:</strong> {selectedResult.nombreLaboratorista || 'No disponible'}</Typography>
-                          </Grid>
-                        </Grid>
-                      </Paper>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                      <Paper sx={{ p: 2, bgcolor: '#f5f5f5', borderLeft: '5px solid #39A900' }}>
-                        <Typography variant="h6" gutterBottom sx={{ color: '#39A900', fontWeight: 'bold' }}>
-                          Resultados de Análisis
+                        <Typography variant="subtitle1" sx={{ 
+                          opacity: 0.9,
+                          fontSize: '1.1rem'
+                        }}>
+                          Muestra #{selectedResult.idMuestra}
                         </Typography>
-                        <Grid container spacing={2}>
-                          {Object.entries(selectedResult.resultados || {}).map(([key, value]) => (
-                            <Grid item xs={6} key={key}>
-                              <Typography>
-                                <strong>{key}:</strong> {value.valor} {value.unidad || ''}
-                              </Typography>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      </Paper>
-                    </Grid>
-
-                    {selectedResult.verificado && (
-                      <Grid item xs={12}>
-                        <Paper sx={{ p: 2, bgcolor: '#f5f5f5', borderLeft: '5px solid #39A900' }}>
-                          <Typography variant="h6" gutterBottom sx={{ color: '#39A900', fontWeight: 'bold' }}>
-                            Observaciones de Verificación
-                          </Typography>
-                          <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
-                            Verificado por: {selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion)?.nombre || 'No disponible'}
-                          </Typography>
-                          <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
-                            Fecha de verificación: {
-                              (() => {
-                                const cambioVerificacion = selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion);
-                                return cambioVerificacion?.fecha?.fecha && cambioVerificacion?.fecha?.hora
-                                  ? `${cambioVerificacion.fecha.fecha} ${cambioVerificacion.fecha.hora}`
-                                  : 'No disponible'
-                              })()
-                            }
-                          </Typography>
-                          <Typography>
-                            {selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion)?.observaciones || 'No hay observaciones disponibles'}
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-
-                    {selectedResult.historialCambios?.length > 0 && (
-                      <Grid item xs={12}>
-                        <Paper sx={{ p: 2, bgcolor: '#f5f5f5', borderLeft: '5px solid #39A900' }}>
-                          <Typography variant="h6" gutterBottom sx={{ color: '#39A900', fontWeight: 'bold' }}>
-                            Historial de Cambios
-                          </Typography>
-                          {selectedResult.historialCambios.map((cambio, index) => (
-                            <Box 
-                              key={index} 
-                              sx={{ 
-                                mb: 2, 
-                                p: 2, 
-                                bgcolor: 'white', 
-                                borderRadius: 1,
-                                border: '1px solid #e0e0e0'
-                              }}
-                            >
-                              <Grid container spacing={2}>
-                                <Grid item xs={12}>
-                                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#39A900' }}>
-                                    Cambio #{selectedResult.historialCambios.length - index}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ mb: 1, color: '#666' }}>
-                                    Realizado por: {cambio.nombre || 'No disponible'} | Fecha: {cambio.fecha?.fecha && cambio.fecha?.hora 
-                                      ? `${cambio.fecha.fecha} ${cambio.fecha.hora}`
-                                      : formatearFecha(cambio.fecha)}
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ mb: 2, fontStyle: 'italic' }}>
-                                    Observaciones: {cambio.observaciones || 'Sin observaciones'}
-                                  </Typography>
-                                </Grid>
-                                <Grid item xs={12}>
-                                  <TableContainer component={Paper} variant="outlined">
-                                    <Table size="small">
-                                      <TableHead sx={{ bgcolor: '#f5f5f5' }}>
-                                        <TableRow>
-                                          <TableCell sx={{ fontWeight: 'bold' }}>Parámetro</TableCell>
-                                          <TableCell sx={{ fontWeight: 'bold' }}>Valor Anterior</TableCell>
-                                          <TableCell sx={{ fontWeight: 'bold' }}>Valor Nuevo</TableCell>
-                                          <TableCell sx={{ fontWeight: 'bold' }}>Unidad</TableCell>
-                                        </TableRow>
-                                      </TableHead>
-                                      <TableBody>
-                                        {cambio.cambiosRealizados?.resultados && Object.keys(cambio.cambiosRealizados.resultados).length > 0 ? (
-                                          Object.entries(cambio.cambiosRealizados.resultados).map(([param, valores], i) => (
-                                            <TableRow key={i}>
-                                              <TableCell>{param}</TableCell>
-                                              <TableCell>{valores.valorAnterior ?? 'No disponible'}</TableCell>
-                                              <TableCell>{valores.valorNuevo ?? 'No disponible'}</TableCell>
-                                              <TableCell>{valores.unidad || '-'}</TableCell>
-                                            </TableRow>
-                                          ))
-                                        ) : cambio.cambiosRealizados?.verificacion && cambio.cambiosRealizados?.estado ? (
-                                          <TableRow>
-                                            <TableCell>Estado</TableCell>
-                                            <TableCell>{cambio.cambiosRealizados.estado.anterior ?? 'No disponible'}</TableCell>
-                                            <TableCell>{cambio.cambiosRealizados.estado.nuevo ?? 'No disponible'}</TableCell>
-                                            <TableCell>-</TableCell>
-                                          </TableRow>
-                                        ) : (
-                                          <TableRow>
-                                            <TableCell colSpan={4}>No hay cambios registrados</TableCell>
-                                          </TableRow>
-                                        )}
-                                      </TableBody>
-                                    </Table>
-                                  </TableContainer>
-                                </Grid>
-                              </Grid>
-                            </Box>
-                          ))}
-                        </Paper>
-                      </Grid>
-                    )}
-                  </Grid>
-
-                  <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    {!selectedResult.verificado && JSON.parse(localStorage.getItem('user') || '{}').rol === 'administrador' && (
-                      <Button
-                        variant="contained"
-                        onClick={() => setDialogoVerificacion(true)}
+                      </Box>
+                      <IconButton
+                        onClick={() => setSelectedResult(null)}
                         sx={{
-                          backgroundColor: '#39A900',
-                          '&:hover': { backgroundColor: '#2d8000' },
-                          fontWeight: 'bold',
-                          px: 3
+                          color: 'white',
+                          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                            transform: 'scale(1.1)',
+                          },
+                          transition: 'all 0.2s ease',
+                          zIndex: 1,
                         }}
                       >
-                        Finalizar
+                        <CloseIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ p: 4 }}>
+                    {/* Estado badge mejorado */}
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                      <Chip
+                        label={selectedResult.verificado ? "✓ Análisis Finalizado" : "⏳ En Proceso"}
+                        sx={{
+                          backgroundColor: selectedResult.verificado ? '#39A900' : '#FF9800',
+                          color: 'white',
+                          fontWeight: 'bold',
+                          fontSize: '1rem',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 3,
+                          boxShadow: selectedResult.verificado 
+                            ? '0 4px 12px rgba(57, 169, 0, 0.3)' 
+                            : '0 4px 12px rgba(255, 152, 0, 0.3)',
+                        }}
+                      />
+                    </Box>
+
+                    <Grid container spacing={3}>
+                      {/* Información General - Card mejorada */}
+                      <Grid item xs={12}>
+                        <Paper elevation={2} sx={{ 
+                          p: 3, 
+                          borderRadius: 3,
+                          background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+                          border: '1px solid rgba(57, 169, 0, 0.1)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '4px',
+                            height: '100%',
+                            background: 'linear-gradient(180deg, #39A900 0%, #4CAF50 100%)',
+                          }
+                        }}>
+                          <Typography variant="h6" sx={{ 
+                            color: '#39A900', 
+                            fontWeight: 'bold',
+                            mb: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            📋 Información General
+                          </Typography>
+                          <Grid container spacing={3}>
+                            <Grid item xs={12} sm={6}>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(57, 169, 0, 0.05)', 
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(57, 169, 0, 0.1)'
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    ID DE MUESTRA
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                                    {selectedResult.idMuestra}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(33, 150, 243, 0.05)', 
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(33, 150, 243, 0.1)'
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    CLIENTE
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
+                                    {selectedResult.cliente?.nombre || 'Sin nombre'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(156, 39, 176, 0.05)', 
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(156, 39, 176, 0.1)'
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    FECHA DE MUESTREO
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#9C27B0' }}>
+                                    {formatearFecha(selectedResult.fechaHoraMuestreo)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(255, 152, 0, 0.05)', 
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(255, 152, 0, 0.1)'
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    LABORATORISTA
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#FF9800' }}>
+                                    {selectedResult.nombreLaboratorista || 'No asignado'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+                          </Grid>
+                        </Paper>
+                      </Grid>
+
+                      {/* Resultados de Análisis - Card mejorada */}
+                      <Grid item xs={12}>
+                        <Paper elevation={2} sx={{ 
+                          p: 3, 
+                          borderRadius: 3,
+                          background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+                          border: '1px solid rgba(57, 169, 0, 0.1)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '4px',
+                            height: '100%',
+                            background: 'linear-gradient(180deg, #2196F3 0%, #21CBF3 100%)',
+                          }
+                        }}>
+                          <Typography variant="h6" sx={{ 
+                            color: '#2196F3', 
+                            fontWeight: 'bold',
+                            mb: 3,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            🧪 Resultados de Análisis
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {Object.entries(selectedResult.resultados || {}).map(([key, value], index) => (
+                              <Grid item xs={12} sm={6} md={4} key={key}>
+                                <Paper elevation={1} sx={{
+                                  p: 2.5,
+                                  textAlign: 'center',
+                                  borderRadius: 3,
+                                  background: `linear-gradient(135deg, ${
+                                    index % 4 === 0 ? '#e3f2fd' : 
+                                    index % 4 === 1 ? '#f3e5f5' : 
+                                    index % 4 === 2 ? '#e8f5e8' : '#fff3e0'
+                                  } 0%, #ffffff 100%)`,
+                                  border: `1px solid ${
+                                    index % 4 === 0 ? 'rgba(33, 150, 243, 0.2)' : 
+                                    index % 4 === 1 ? 'rgba(156, 39, 176, 0.2)' : 
+                                    index % 4 === 2 ? 'rgba(57, 169, 0, 0.2)' : 'rgba(255, 152, 0, 0.2)'
+                                  }`,
+                                  transition: 'all 0.3s ease',
+                                  '&:hover': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                                  }
+                                }}>
+                                  <Typography variant="body2" sx={{ 
+                                    color: '#666', 
+                                    fontSize: '0.8rem', 
+                                    mb: 1,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    fontWeight: 500
+                                  }}>
+                                    {key}
+                                  </Typography>
+                                  <Typography variant="h5" sx={{ 
+                                    fontWeight: 'bold',
+                                    color: index % 4 === 0 ? '#2196F3' : 
+                                           index % 4 === 1 ? '#9C27B0' : 
+                                           index % 4 === 2 ? '#39A900' : '#FF9800',
+                                    mb: 0.5
+                                  }}>
+                                    {value.valor}
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ 
+                                    color: '#888',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 500
+                                  }}>
+                                    {value.unidad || 'Sin unidad'}
+                                  </Typography>
+                                </Paper>
+                              </Grid>
+                            ))}
+                          </Grid>                        </Paper>
+                      </Grid>
+
+                      {/* Observaciones de Verificación - Card mejorada */}
+                      {selectedResult.verificado && (
+                        <Grid item xs={12}>
+                          <Paper elevation={2} sx={{ 
+                            p: 3, 
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #e8f5e8 0%, #ffffff 100%)',
+                            border: '1px solid rgba(57, 169, 0, 0.2)',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '4px',
+                              height: '100%',
+                              background: 'linear-gradient(180deg, #39A900 0%, #4CAF50 100%)',
+                            }
+                          }}>
+                            <Typography variant="h6" sx={{ 
+                              color: '#39A900', 
+                              fontWeight: 'bold',
+                              mb: 2,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1
+                            }}>
+                              ✅ Verificación Completa
+                            </Typography>
+                            <Grid container spacing={2}>
+                              <Grid item xs={12} md={6}>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(57, 169, 0, 0.1)', 
+                                  borderRadius: 2,
+                                  mb: 2
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    VERIFICADO POR
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                                    {selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion)?.nombre || 'No disponible'}
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Box sx={{ 
+                                  p: 2, 
+                                  backgroundColor: 'rgba(57, 169, 0, 0.1)', 
+                                  borderRadius: 2,
+                                  mb: 2
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                                    FECHA DE VERIFICACIÓN
+                                  </Typography>
+                                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                                    {
+                                      (() => {
+                                        const cambioVerificacion = selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion);
+                                        return cambioVerificacion?.fecha?.fecha && cambioVerificacion?.fecha?.hora
+                                          ? `${cambioVerificacion.fecha.fecha} ${cambioVerificacion.fecha.hora}`
+                                          : 'No disponible'
+                                      })()
+                                    }
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                              <Grid item xs={12}>
+                                <Box sx={{ 
+                                  p: 3, 
+                                  backgroundColor: 'white', 
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(57, 169, 0, 0.2)',
+                                  boxShadow: '0 2px 8px rgba(57, 169, 0, 0.1)'
+                                }}>
+                                  <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 1 }}>
+                                    OBSERVACIONES
+                                  </Typography>
+                                  <Typography variant="body1" sx={{ 
+                                    fontStyle: 'italic',
+                                    color: '#333',
+                                    lineHeight: 1.6
+                                  }}>
+                                    {selectedResult.historialCambios?.find(c => c.cambiosRealizados?.verificacion)?.observaciones || 'No hay observaciones disponibles'}
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                            </Grid>
+                          </Paper>
+                        </Grid>
+                      )}
+
+                      {/* Historial de Cambios - Card mejorada */}
+                      {selectedResult.historialCambios?.length > 0 && (
+                        <Grid item xs={12}>
+                          <Paper elevation={2} sx={{ 
+                            p: 3, 
+                            borderRadius: 3,
+                            background: 'linear-gradient(135deg, #fff3e0 0%, #ffffff 100%)',
+                            border: '1px solid rgba(255, 152, 0, 0.2)',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '4px',
+                              height: '100%',
+                              background: 'linear-gradient(180deg, #FF9800 0%, #FFB74D 100%)',
+                            }
+                          }}>
+                            <Typography variant="h6" sx={{ 
+                              color: '#FF9800', 
+                              fontWeight: 'bold',
+                              mb: 3,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1
+                            }}>
+                              📝 Historial de Cambios
+                            </Typography>
+                            {selectedResult.historialCambios.map((cambio, index) => (
+                              <Box 
+                                key={index} 
+                                sx={{ 
+                                  mb: 3, 
+                                  p: 3, 
+                                  bgcolor: 'white', 
+                                  borderRadius: 3,
+                                  border: '1px solid rgba(255, 152, 0, 0.2)',
+                                  boxShadow: '0 4px 12px rgba(255, 152, 0, 0.1)',
+                                  position: 'relative',
+                                  '&::before': {
+                                    content: `"${selectedResult.historialCambios.length - index}"`,
+                                    position: 'absolute',
+                                    top: -10,
+                                    left: 20,
+                                    backgroundColor: '#FF9800',
+                                    color: 'white',
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    boxShadow: '0 2px 8px rgba(255, 152, 0, 0.3)'
+                                  }
+                                }}
+                              >
+                                <Box sx={{ pt: 1 }}>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={12} md={6}>
+                                      <Box sx={{ 
+                                        p: 2, 
+                                        backgroundColor: 'rgba(255, 152, 0, 0.1)', 
+                                        borderRadius: 2
+                                      }}>
+                                        <Typography variant="body2" sx={{ color: '#666', fontSize: '0.8rem', mb: 0.5 }}>
+                                          REALIZADO POR
+                                        </Typography>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#FF9800' }}>
+                                          {cambio.nombre || 'No disponible'}
+                                        </Typography>
+                                      </Box>
+                                    </Grid>
+                                    <Grid item xs={12} md={6}>
+                                      <Box sx={{ 
+                                        p: 2, 
+                                        backgroundColor: 'rgba(255, 152, 0, 0.1)', 
+                                        borderRadius: 2
+                                      }}>
+                                        <Typography variant="body2" sx={{ color: '#666', fontSize: '0.8rem', mb: 0.5 }}>
+                                          FECHA Y HORA
+                                        </Typography>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#FF9800' }}>
+                                          {cambio.fecha?.fecha && cambio.fecha?.hora 
+                                            ? `${cambio.fecha.fecha} ${cambio.fecha.hora}`
+                                            : formatearFecha(cambio.fecha)}
+                                        </Typography>
+                                      </Box>
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                      <Box sx={{ 
+                                        p: 2, 
+                                        backgroundColor: 'rgba(255, 152, 0, 0.05)', 
+                                        borderRadius: 2,
+                                        border: '1px solid rgba(255, 152, 0, 0.1)'
+                                      }}>
+                                        <Typography variant="body2" sx={{ color: '#666', fontSize: '0.8rem', mb: 1 }}>
+                                          OBSERVACIONES
+                                        </Typography>
+                                        <Typography variant="body1" sx={{ 
+                                          fontStyle: 'italic',
+                                          color: '#333',
+                                          lineHeight: 1.6
+                                        }}>
+                                          {cambio.observaciones || 'Sin observaciones'}
+                                        </Typography>
+                                      </Box>
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                      <TableContainer component={Paper} sx={{ 
+                                        borderRadius: 2,
+                                        overflow: 'hidden',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                      }}>
+                                        <Table size="small">
+                                          <TableHead sx={{ 
+                                            background: 'linear-gradient(90deg, #FF9800 0%, #FFB74D 100%)'
+                                          }}>
+                                            <TableRow>
+                                              <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Parámetro</TableCell>
+                                              <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Valor Anterior</TableCell>
+                                              <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Valor Nuevo</TableCell>
+                                              <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Unidad</TableCell>
+                                            </TableRow>
+                                          </TableHead>
+                                          <TableBody>
+                                            {cambio.cambiosRealizados?.resultados && Object.keys(cambio.cambiosRealizados.resultados).length > 0 ? (
+                                              Object.entries(cambio.cambiosRealizados.resultados).map(([param, valores], i) => (
+                                                <TableRow key={i} sx={{
+                                                  '&:nth-of-type(odd)': { backgroundColor: 'rgba(255, 152, 0, 0.03)' },
+                                                  '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.1)' }
+                                                }}>
+                                                  <TableCell sx={{ fontWeight: 'bold' }}>{param}</TableCell>
+                                                  <TableCell sx={{ color: '#d32f2f' }}>{valores.valorAnterior ?? 'No disponible'}</TableCell>
+                                                  <TableCell sx={{ color: '#2e7d32', fontWeight: 'bold' }}>{valores.valorNuevo ?? 'No disponible'}</TableCell>
+                                                  <TableCell>{valores.unidad || '-'}</TableCell>
+                                                </TableRow>
+                                              ))
+                                            ) : cambio.cambiosRealizados?.verificacion && cambio.cambiosRealizados?.estado ? (
+                                              <TableRow sx={{
+                                                '&:hover': { backgroundColor: 'rgba(255, 152, 0, 0.1)' }
+                                              }}>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
+                                                <TableCell sx={{ color: '#d32f2f' }}>{cambio.cambiosRealizados.estado.anterior ?? 'No disponible'}</TableCell>
+                                                <TableCell sx={{ color: '#2e7d32', fontWeight: 'bold' }}>{cambio.cambiosRealizados.estado.nuevo ?? 'No disponible'}</TableCell>
+                                                <TableCell>-</TableCell>
+                                              </TableRow>
+                                            ) : (
+                                              <TableRow>
+                                                <TableCell colSpan={4} sx={{ textAlign: 'center', fontStyle: 'italic', color: '#666' }}>
+                                                  No hay cambios registrados
+                                                </TableCell>
+                                              </TableRow>
+                                            )}
+                                          </TableBody>
+                                        </Table>
+                                      </TableContainer>
+                                    </Grid>
+                                  </Grid>
+                                </Box>
+                              </Box>
+                            ))}
+                          </Paper>
+                        </Grid>
+                      )}
+                    </Grid>
+
+                    {/* Botones de acción mejorados */}
+                    <Box sx={{ 
+                      mt: 4, 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      gap: 2,
+                      borderTop: '1px solid rgba(0,0,0,0.1)',
+                      pt: 3
+                    }}>
+                      {!selectedResult.verificado && JSON.parse(localStorage.getItem('user') || '{}').rol === 'administrador' && (
+                        <Button
+                          variant="contained"
+                          onClick={() => setDialogoVerificacion(true)}
+                          startIcon={<PictureAsPdfIcon />}
+                          sx={{
+                            background: 'linear-gradient(135deg, #39A900 0%, #4CAF50 100%)',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            px: 4,
+                            py: 1.5,
+                            borderRadius: 3,
+                            boxShadow: '0 4px 15px rgba(57, 169, 0, 0.3)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #2d8000 0%, #388E3C 100%)',
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 6px 20px rgba(57, 169, 0, 0.4)',
+                            },
+                            transition: 'all 0.3s ease',
+                          }}
+                        >
+                          Finalizar Análisis
+                        </Button>
+                      )}
+                      <Button 
+                        variant="outlined"
+                        onClick={() => setSelectedResult(null)}
+                        startIcon={<CloseIcon />}
+                        sx={{ 
+                          borderColor: '#39A900', 
+                          color: '#39A900', 
+                          fontWeight: 'bold', 
+                          px: 4,
+                          py: 1.5,
+                          borderRadius: 3,
+                          '&:hover': { 
+                            borderColor: '#2d8000', 
+                            color: '#2d8000',
+                            backgroundColor: 'rgba(57, 169, 0, 0.05)',
+                            transform: 'translateY(-2px)',
+                          },
+                          transition: 'all 0.3s ease',
+                        }}
+                      >
+                        Cerrar
                       </Button>
-                    )}
-                    <Button 
-                      variant="outlined"
-                      onClick={() => setSelectedResult(null)}
-                      sx={{ borderColor: '#39A900', color: '#39A900', fontWeight: 'bold', px: 3, '&:hover': { borderColor: '#2d8000', color: '#2d8000' } }}
-                    >
-                      Cerrar
-                    </Button>
+                    </Box>
                   </Box>
                 </>
               )}

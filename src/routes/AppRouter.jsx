@@ -6,6 +6,7 @@ import { CircularProgress, Box } from "@mui/material";
 import Layout from "../components/Layout";
 import PrivateRoute from "./PrivateRoute";
 import { createLazyComponent } from "../components/LazyLoad";
+import { NotificationProvider } from "../context/NotificationContext";
 
 // Carga dinámica de páginas con prioridades
 // Páginas de alta prioridad (carga inmediata)
@@ -35,18 +36,19 @@ const Auditorias = createLazyComponent(() => import("../pages/Auditorias"));
 const AppRouter = () => {
   return (
     <Router>
-      <Suspense fallback={
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          background: 'linear-gradient(135deg, #f5f7fa 0%, #d7f7dd 100%)'
-        }}>
-          <CircularProgress color="primary" />
-        </Box>
-      }>
-        <Routes>
+      <NotificationProvider>
+        <Suspense fallback={
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            background: 'linear-gradient(135deg, #f5f7fa 0%, #d7f7dd 100%)'
+          }}>
+            <CircularProgress color="primary" />
+          </Box>
+        }>
+          <Routes>
           {/* Rutas públicas */}
           <Route path="/login" element={<Login />} />
           <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
@@ -137,10 +139,10 @@ const AppRouter = () => {
                   <Auditorias />
                 </Layout>
               </PrivateRoute>
-            }
-          />
+            }          />
         </Routes>
       </Suspense>
+      </NotificationProvider>
     </Router>
   );
 };

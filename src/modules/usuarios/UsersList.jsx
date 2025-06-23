@@ -460,28 +460,178 @@ const UsersList = memo(() => {
             Guardar
           </Button>
         </DialogActions>
-      </Dialog>
-
-      {/* Diálogo de detalle */}
-      <Dialog open={openDetail} onClose={handleCloseDetail} PaperProps={{ sx: { borderRadius: 4, minWidth: 350 } }}>
-        <DialogTitle sx={{ color: primaryColor, fontWeight: 700, textAlign: "center" }}>Detalle del Usuario</DialogTitle>
-        <DialogContent dividers>
-          <Box sx={{ border: `1px solid ${primaryColor}33`, borderRadius: 3, p: 2, background: "#f9f9f9" }}>
-            <Typography variant="h6" align="center" color={primaryColor} fontWeight={700}>
+      </Dialog>      {/* Diálogo de detalle compacto */}
+      <Dialog 
+        open={openDetail} 
+        onClose={handleCloseDetail} 
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ 
+          sx: { 
+            borderRadius: 3, 
+            width: 420,
+            maxHeight: '85vh',
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+            boxShadow: '0 12px 40px rgba(57, 169, 0, 0.15)'
+          } 
+        }}
+      >        <DialogTitle sx={{ 
+          background: `linear-gradient(135deg, ${primaryColor} 0%, #2d8000 100%)`,
+          color: 'white',
+          textAlign: 'center',
+          borderRadius: '12px 12px 0 0',
+          py: 2,
+          position: 'relative',
+          overflow: 'hidden',
+          fontWeight: 700
+        }}>
+          Detalle del Usuario
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0, background: 'transparent' }}>
+          {/* Avatar y nombre principal compacto */}
+          <Box sx={{ 
+            textAlign: 'center', 
+            py: 2, 
+            px: 2,
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0'
+          }}>
+            <Box sx={{ 
+              width: 60, 
+              height: 60, 
+              borderRadius: '50%', 
+              background: `linear-gradient(135deg, ${primaryColor}, #2d8000)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 12px',
+              boxShadow: '0 4px 12px rgba(57, 169, 0, 0.3)',
+              border: '3px solid white'
+            }}>
+              <Typography variant="h4" fontWeight={700} color="white">
+                {detailUser?.nombre?.charAt(0)?.toUpperCase() || 'U'}
+              </Typography>
+            </Box>
+            <Typography variant="h6" fontWeight={700} color={primaryColor} mb={1}>
               {detailUser?.nombre}
             </Typography>
-            <Box mt={2} display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={1.5}>
-              <Typography variant="body2"><strong>Documento:</strong> {detailUser?.documento}</Typography>
-              <Typography variant="body2"><strong>Teléfono:</strong> {detailUser?.telefono}</Typography>
-              <Typography variant="body2"><strong>Dirección:</strong> {detailUser?.direccion}</Typography>
-              <Typography variant="body2"><strong>Email:</strong> {detailUser?.email}</Typography>
-              <Typography variant="body2"><strong>Rol:</strong> {getRoleName(detailUser)}</Typography>
-              <Typography variant="body2"><strong>Activo:</strong> {detailUser?.activo ? "Sí" : "No"}</Typography>
+            <Box sx={{ 
+              background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}05)`,
+              borderRadius: 1.5,
+              px: 1.5,
+              py: 0.5,
+              display: 'inline-block',
+              border: `1px solid ${primaryColor}30`
+            }}>
+              <Typography variant="body2" fontWeight={600} color={primaryColor}>
+                {getRoleName(detailUser)}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Información detallada compacta */}
+          <Box sx={{ p: 2, background: 'white' }}>
+            <Typography variant="subtitle1" fontWeight={600} color={primaryColor} mb={1.5} sx={{ 
+              borderLeft: `3px solid ${primaryColor}`,
+              pl: 1.5,
+              fontSize: '1rem'
+            }}>
+              Información Personal
+            </Typography>
+            
+            <Box sx={{ display: 'grid', gap: 1.5 }}>
+              {[
+                { label: 'Documento', value: detailUser?.documento, icon: '🆔' },
+                { label: 'Email', value: detailUser?.email, icon: '📧' },
+                { label: 'Teléfono', value: detailUser?.telefono, icon: '📱' },
+                { label: 'Dirección', value: detailUser?.direccion, icon: '🏠' }
+              ].map((item, index) => (
+                <Box key={index} sx={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  p: 1.5,
+                  background: index % 2 === 0 ? '#f8f9fa' : 'white',
+                  borderRadius: 1.5,
+                  border: '1px solid #e9ecef',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    borderColor: primaryColor,
+                    boxShadow: `0 2px 6px ${primaryColor}15`
+                  }
+                }}>
+                  <Typography sx={{ fontSize: '1rem', mr: 1.5 }}>
+                    {item.icon}
+                  </Typography>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={500} display="block">
+                      {item.label}
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                      {item.value || 'No especificado'}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+              
+              {/* Estado del usuario compacto */}
+              <Box sx={{ 
+                display: 'flex',
+                alignItems: 'center',
+                p: 1.5,
+                background: detailUser?.activo ? '#e8f5e9' : '#ffebee',
+                borderRadius: 1.5,
+                border: `1px solid ${detailUser?.activo ? primaryColor : '#f44336'}30`,
+              }}>
+                <Typography sx={{ fontSize: '1rem', mr: 1.5 }}>
+                  {detailUser?.activo ? '✅' : '❌'}
+                </Typography>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={500} display="block">
+                    Estado
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={600}
+                    color={detailUser?.activo ? primaryColor : '#f44336'}
+                  >
+                    {detailUser?.activo ? 'Activo' : 'Inactivo'}
+                  </Typography>
+                </Box>
+              </Box>
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button onClick={handleCloseDetail} sx={{ color: accentColor, fontWeight: 600 }}>Cerrar</Button>
+        
+        <DialogActions sx={{ 
+          justifyContent: 'center', 
+          p: 2,
+          background: 'white',
+          borderTop: '1px solid #e0e0e0'
+        }}>
+          <Button 
+            onClick={handleCloseDetail} 
+            variant="contained"
+            sx={{ 
+              background: `linear-gradient(135deg, ${primaryColor}, #2d8000)`,
+              color: 'white',
+              fontWeight: 600,
+              px: 3,
+              py: 1,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontSize: '0.9rem',
+              boxShadow: '0 3px 8px rgba(57, 169, 0, 0.3)',
+              '&:hover': {
+                background: `linear-gradient(135deg, #2d8000, ${primaryColor})`,
+                boxShadow: '0 4px 12px rgba(57, 169, 0, 0.4)',
+                transform: 'translateY(-1px)'
+              },
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Cerrar
+          </Button>
         </DialogActions>
       </Dialog>
 

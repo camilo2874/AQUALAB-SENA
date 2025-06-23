@@ -438,39 +438,43 @@ const ExcelGenerator = () => {
         }
       }
     }
-  };
-
-  const obtenerEstadisticasAnalisis = async () => {
+  };  const obtenerEstadisticasAnalisis = async () => {
     setLoadingAnalisis(true);
     setErrorAnalisis(null);
     try {
-      const token = localStorage.getItem('token');      const response = await axios.get(
-        `${BASE_URL}/auditoria/estadisticas-analisis`,
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            parametro: selectedParameter
-          }
-        }
-      );
+      console.log('Iniciando obtención de estadísticas de análisis...');
       
-      // Guardamos toda la respuesta para poder acceder tanto a los datos de evolución como a las cantidades
-      setEstadisticasAnalisis(response.data);
+      // Usar el servicio existente en lugar de llamada directa
+      const response = await excelGenerator.obtenerEstadisticasAnalisis();
+      
+      console.log('Respuesta del servicio de estadísticas:', response);
+      
+      // Verificar si la respuesta tiene la estructura esperada
+      if (response && response.success) {
+        console.log('Datos de estadísticas con estructura success:', response);
+        setEstadisticasAnalisis(response);
+      } else if (response && Array.isArray(response)) {
+        console.log('Datos de estadísticas como array directo:', response);
+        setEstadisticasAnalisis({ data: response });
+      } else if (response && response.data) {
+        console.log('Datos de estadísticas con propiedad data:', response);
+        setEstadisticasAnalisis(response);
+      } else {
+        console.log('Estructura de respuesta no reconocida:', response);
+        // Si no tiene la estructura esperada, usar la respuesta directamente
+        setEstadisticasAnalisis({ data: response || [] });
+      }
     } catch (error) {
-      console.error('Error al obtener estadísticas:', error);
-      setErrorAnalisis('Error al cargar las estadísticas de análisis');
+      console.error('Error al obtener estadísticas de análisis:', error);
+      setErrorAnalisis('Error al cargar las estadísticas de análisis: ' + (error.message || error.toString()));
     } finally {
       setLoadingAnalisis(false);
     }
-  };
-  useEffect(() => {
-    if (selectedTab === 1 && selectedParameter) {
+  };useEffect(() => {
+    if (selectedTab === 1) {
       obtenerEstadisticasAnalisis();
     }
-  }, [selectedTab, selectedParameter]);
+  }, [selectedTab]);
 
   return (
     <div>
@@ -791,82 +795,163 @@ const ExcelGenerator = () => {
                   </Table>
                 </TableContainer>
               </Card>
-            )}
-            {selectedTab === 1 && (
+            )}            {selectedTab === 1 && (
               <Box sx={{ mt: 3 }}>
-                {selectedParameter ? (
-                  <Card>
-                    <CardContent>
-                      <Card sx={{ p: 3, bgcolor: '#f5f5f5' }}>
-                        <Typography variant="h6" gutterBottom sx={{ color: '#39A900', fontWeight: 'medium' }}>
+                <Card>
+                  <CardContent>                    <Card sx={{ p: 3, bgcolor: '#f5f5f5' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" sx={{ color: '#39A900', fontWeight: 'medium' }}>
                           Cantidad de Muestras por Parámetro
                         </Typography>
-                        <Box sx={{ mt: 2 }}>
-                          {loadingAnalisis ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100px' }}>
-                              <CircularProgress />
-                            </Box>
-                          ) : errorAnalisis ? (
-                            <Alert severity="error">{errorAnalisis}</Alert>
-                          ) : (
-                            <Box sx={{ height: 400, width: '100%' }}>
-                              {Array.isArray(estadisticasAnalisis.data) ? (
-                                <Bar
-                                  data={{
-                                    labels: estadisticasAnalisis.data.map(item => item._id),
-                                    datasets: [{
-                                      label: 'Cantidad de Muestras',
-                                      data: estadisticasAnalisis.data.map(item => item.cantidad),
-                                      backgroundColor: 'rgba(57, 169, 0, 0.7)',
-                                      borderColor: '#39A900',
-                                      borderWidth: 1
-                                    }]
-                                  }}
-                                  options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    indexAxis: 'y',
-                                    plugins: {
-                                      legend: {
-                                        position: 'top'
-                                      },
-                                      title: {
-                                        display: true,
-                                        text: 'Cantidad de Muestras por Parámetro',
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<RefreshIcon />}
+                          onClick={obtenerEstadisticasAnalisis}
+                          disabled={loadingAnalisis}
+                          sx={{ 
+                            borderColor: '#39A900', 
+                            color: '#39A900',
+                            '&:hover': { 
+                              borderColor: '#2e7d00', 
+                              color: '#2e7d00',
+                              backgroundColor: 'rgba(57, 169, 0, 0.1)'
+                            }
+                          }}
+                        >
+                          Recargar
+                        </Button>
+                      </Box>
+                      <Box sx={{ mt: 2 }}>
+                        {loadingAnalisis ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100px' }}>
+                            <CircularProgress />
+                          </Box>
+                        ) : errorAnalisis ? (
+                          <Alert severity="error">{errorAnalisis}</Alert>
+                        ) : (                          <Box sx={{ height: 400, width: '100%' }}>
+                            {estadisticasAnalisis && estadisticasAnalisis.data && Array.isArray(estadisticasAnalisis.data) && estadisticasAnalisis.data.length > 0 ? (
+                              <Bar
+                                data={{
+                                  labels: estadisticasAnalisis.data.map(item => {
+                                    // Manejo flexible de diferentes formatos de nombre
+                                    return item._id || item.parametro || item.nombre || item.label || 'Sin nombre';
+                                  }),
+                                  datasets: [{
+                                    label: 'Cantidad de Muestras',
+                                    data: estadisticasAnalisis.data.map(item => {
+                                      // Manejo flexible de diferentes formatos de cantidad
+                                      return item.cantidad || item.count || item.total || item.value || 0;
+                                    }),
+                                    backgroundColor: 'rgba(57, 169, 0, 0.7)',
+                                    borderColor: '#39A900',
+                                    borderWidth: 1,
+                                    borderRadius: 4,
+                                    borderSkipped: false,
+                                  }]
+                                }}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  indexAxis: 'y',
+                                  plugins: {
+                                    legend: {
+                                      position: 'top',
+                                      labels: {
+                                        color: '#333',
                                         font: {
-                                          size: 16,
-                                          weight: 'bold'
+                                          size: 12
                                         }
                                       }
                                     },
-                                    scales: {
-                                      x: {
-                                        beginAtZero: true,
-                                        title: {
-                                          display: true,
-                                          text: 'Cantidad de Muestras'
+                                    title: {
+                                      display: true,
+                                      text: 'Cantidad de Muestras por Parámetro',
+                                      font: {
+                                        size: 16,
+                                        weight: 'bold'
+                                      },
+                                      color: '#39A900'
+                                    },
+                                    tooltip: {
+                                      backgroundColor: 'rgba(0,0,0,0.8)',
+                                      titleColor: 'white',
+                                      bodyColor: 'white',
+                                      borderColor: '#39A900',
+                                      borderWidth: 1
+                                    }
+                                  },
+                                  scales: {
+                                    x: {
+                                      beginAtZero: true,
+                                      title: {
+                                        display: true,
+                                        text: 'Cantidad de Muestras',
+                                        color: '#666',
+                                        font: {
+                                          size: 12,
+                                          weight: 'bold'
                                         }
                                       },
-                                      y: {
-                                        title: {
-                                          display: true,
-                                          text: 'Parámetro'
+                                      grid: {
+                                        color: 'rgba(0,0,0,0.1)'
+                                      },
+                                      ticks: {
+                                        color: '#666'
+                                      }
+                                    },
+                                    y: {
+                                      title: {
+                                        display: true,
+                                        text: 'Parámetro',
+                                        color: '#666',
+                                        font: {
+                                          size: 12,
+                                          weight: 'bold'
                                         }
+                                      },
+                                      grid: {
+                                        color: 'rgba(0,0,0,0.1)'
+                                      },
+                                      ticks: {
+                                        color: '#666',
+                                        maxRotation: 0,
+                                        minRotation: 0
                                       }
                                     }
-                                  }}
-                                />
-                              ) : (
-                                <Alert severity="info">
-                                  No hay datos disponibles sobre la cantidad de muestras por parámetro.
-                                </Alert>
-                              )}
-                            </Box>
-                          )}
-                        </Box>
-                      </Card>
-
-                      {/* Tabla de historial */}
+                                  },
+                                  layout: {
+                                    padding: {
+                                      left: 10,
+                                      right: 10,
+                                      top: 10,
+                                      bottom: 10
+                                    }
+                                  }
+                                }}
+                              />
+                            ) : estadisticasAnalisis && (!estadisticasAnalisis.data || estadisticasAnalisis.data.length === 0) ? (
+                              <Alert severity="info" sx={{ m: 2 }}>
+                                No hay datos disponibles sobre la cantidad de muestras por parámetro. 
+                                {estadisticasAnalisis.message && (
+                                  <Box component="span" sx={{ display: 'block', mt: 1, fontSize: '0.9em', opacity: 0.8 }}>
+                                    {estadisticasAnalisis.message}
+                                  </Box>
+                                )}
+                              </Alert>
+                            ) : (
+                              <Alert severity="warning" sx={{ m: 2 }}>
+                                Los datos de estadísticas no tienen el formato esperado. 
+                                <Box component="span" sx={{ display: 'block', mt: 1, fontSize: '0.8em', fontFamily: 'monospace', opacity: 0.7 }}>
+                                  Estructura recibida: {JSON.stringify(estadisticasAnalisis, null, 2).substring(0, 100)}...
+                                </Box>
+                              </Alert>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    </Card>                    {/* Tabla de historial filtrada por parámetro seleccionado */}
+                    {selectedParameter && (
                       <TableContainer component={Paper} sx={{ mt: 2, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                         <Table>
                           <TableHead>
@@ -897,19 +982,11 @@ const ExcelGenerator = () => {
                           </TableBody>
                         </Table>
                       </TableContainer>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card>
-                    <CardContent>
-                      <Alert severity="info" sx={{ borderRadius: 2 }}>
-                        Seleccione un parámetro para ver su historial y análisis detallado
-                      </Alert>
-                    </CardContent>
-                  </Card>
-                )}
+                    )}
+                  </CardContent>
+                </Card>
               </Box>
-            )}            {selectedTab === 2 && (
+            )}{selectedTab === 2 && (
               <Box sx={{ mt: 2 }}>
                 <Grid container spacing={3}>
                   {/* Gráfico de Distribución de Muestras */}

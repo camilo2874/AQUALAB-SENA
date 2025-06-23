@@ -328,18 +328,40 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
     }
   };
   const esCotizacion = selectedMuestra?.estado === "En Cotización" || selectedMuestra?.estado === "En Cotizacion";
-  const esAceptada = selectedMuestra?.estado === "Aceptada";
-  return (
-    <Modal open={selectedMuestra !== null} onClose={onClose}>
-      <Box sx={modalStyle}>        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Detalles de la Muestra</Typography>
+  const esAceptada = selectedMuestra?.estado === "Aceptada";  return (
+    <Modal 
+      open={selectedMuestra !== null} 
+      onClose={onClose}
+      closeAfterTransition
+      BackdropComponent={Backdrop}
+      BackdropProps={{
+        timeout: 500,
+      }}
+    >
+      <Fade in={selectedMuestra !== null}>
+        <Box sx={modalStyle}>        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1.5, borderBottom: '2px solid #39A900' }}>
+          <Typography variant="h5" sx={{ 
+            fontWeight: 'bold', 
+            color: '#39A900',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5
+          }}>
+            <ScienceIcon sx={{ fontSize: 28 }} />
+            Detalles de la Muestra
+          </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {tipoUsuario !== "laboratorista" && (
               <Button
                 variant="contained"
                 startIcon={<PictureAsPdfIcon />}
                 onClick={handleViewPDF}
-                sx={{ backgroundColor: '#39A900', '&:hover': { backgroundColor: '#2d8000' } }}
+                sx={{ 
+                  backgroundColor: '#39A900', 
+                  '&:hover': { backgroundColor: '#2d8600' },
+                  borderRadius: 2,
+                  fontWeight: 'bold'
+                }}
               >
                 Ver PDF
               </Button>
@@ -348,10 +370,13 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
               onClick={onClose}
               sx={{
                 color: 'grey.500',
+                backgroundColor: 'grey.100',
                 '&:hover': {
-                  backgroundColor: 'grey.100',
-                  color: 'grey.700'
-                }
+                  backgroundColor: 'grey.200',
+                  color: 'grey.700',
+                  transform: 'scale(1.1)'
+                },
+                transition: 'all 0.2s ease'
               }}
               title="Cerrar"
             >
@@ -411,161 +436,451 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
               ) : null}
             </Box>
           </Box>
-        )}
-        {selectedMuestra && (
-          <TableContainer component={Paper} sx={{ maxWidth: "100%" }}>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>ID Muestra</TableCell>
-                  <TableCell>{selectedMuestra.id_muestra || selectedMuestra._id || "N/A"}</TableCell>
-                </TableRow>
-                {!hideClientData && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Documento</TableCell>
-                    <TableCell>
-                      {selectedMuestra.documento || selectedMuestra.cliente?.documento || "N/A"}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!hideClientData && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Cliente</TableCell>
-                    <TableCell>
-                      {selectedMuestra.nombreCliente || selectedMuestra.cliente?.nombre || "No encontrado"}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!hideClientData && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Fecha de Creación</TableCell>
-                    <TableCell>
-                      {selectedMuestra.creadoPor?.fechaCreacion?.fecha || "N/A"}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!hideClientData && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Hora de Creación</TableCell>
-                    <TableCell>
-                      {(() => {
-                        const hora = selectedMuestra.creadoPor?.fechaCreacion?.hora;
-                        if (!hora) return "N/A";
-                        const [hours, minutes, seconds] = hora.split(":");
-                        let hours12 = parseInt(hours, 10) % 12 || 12;
-                        const ampm = parseInt(hours, 10) >= 12 ? "PM" : "AM";
-                        return `${hours12}:${minutes} ${ampm}`;
-                      })()}
-                    </TableCell>
-                  </TableRow>
-                )}
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Tipo de Análisis</TableCell>
-                  <TableCell>{selectedMuestra.tipoAnalisis || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Tipo de Muestreo</TableCell>
-                  <TableCell>{selectedMuestra.tipoMuestreo || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Fecha y Hora de Muestreo</TableCell>
-                  <TableCell>{formatFechaHora(selectedMuestra.fechaHoraMuestreo)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Lugar de Muestreo</TableCell>
-                  <TableCell>{selectedMuestra.lugarMuestreo || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Identificación de Muestra</TableCell>
-                  <TableCell>{selectedMuestra.identificacionMuestra || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Plan de Muestreo</TableCell>
-                  <TableCell>{selectedMuestra.planMuestreo || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Condiciones Ambientales</TableCell>
-                  <TableCell>{selectedMuestra.condicionesAmbientales || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Preservación de Muestra</TableCell>
-                  <TableCell>{selectedMuestra.preservacionMuestra || "N/A"}</TableCell>
-                </TableRow>
-                {selectedMuestra.preservacionMuestra === "Otro" && (
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: "bold" }}>Detalle de Preservación</TableCell>
-                    <TableCell>{selectedMuestra.preservacionMuestraOtra || "N/A"}</TableCell>
-                  </TableRow>
-                )}
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Tipo de Agua</TableCell>
-                  <TableCell>
-                    {selectedMuestra.tipoDeAgua?.descripcionCompleta ||
-                      selectedMuestra.tipoDeAgua?.tipo ||
-                      "N/A"}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Análisis Seleccionados</TableCell>
-                  <TableCell>
-                    {Array.isArray(selectedMuestra.analisisSeleccionados) && selectedMuestra.analisisSeleccionados.length > 0
-                      ? selectedMuestra.analisisSeleccionados
-                          .map((analisis) =>
-                            typeof analisis === "object" && analisis !== null
-                              ? analisis.nombre || "Desconocido"
-                              : analisis
-                          )
-                          .join(", ")
-                      : "Ninguno"}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Observaciones</TableCell>
-                  <TableCell>{selectedMuestra.observaciones || "N/A"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: "bold" }}>Estado</TableCell>
-                  <TableCell>
+        )}        {selectedMuestra && (
+          <Box sx={{ maxWidth: "100%", height: '100%' }}>            {/* Información Principal */}
+            <Card sx={{ mb: 2, borderLeft: '4px solid #39A900', background: 'linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%)' }}>
+              <CardContent sx={{ pb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ 
+                      p: 1.5, 
+                      borderRadius: '50%', 
+                      backgroundColor: '#e8f5e9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ScienceIcon sx={{ fontSize: 32, color: '#39A900' }} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                        Muestra #{selectedMuestra.id_muestra || selectedMuestra._id || "N/A"}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {selectedMuestra.identificacionMuestra || "Sin identificación"}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Creada: {selectedMuestra.creadoPor?.fechaCreacion?.fecha || "N/A"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ textAlign: 'right' }}>
                     {(() => {
                       const estadoProps = getEstadoChipProps(selectedMuestra.estado || "No especificado");
                       return (
                         <Chip
                           label={selectedMuestra.estado || "No especificado"}
-                          sx={estadoProps.sx}
+                          sx={{ 
+                            ...estadoProps.sx, 
+                            fontSize: '0.875rem', 
+                            fontWeight: 'bold',
+                            boxShadow: 2,
+                            '&:hover': {
+                              transform: 'scale(1.05)',
+                              transition: 'transform 0.2s ease'
+                            }
+                          }}
+                          size="medium"
                         />
                       );
                     })()}
-                  </TableCell>
-                </TableRow>
-                {selectedMuestra.historial && selectedMuestra.historial.length > 0 && (
-                  <>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: "bold" }}>Muestra creada por:</TableCell>
-                      <TableCell>
-                        {selectedMuestra.historial[selectedMuestra.historial.length - 1].administrador?.nombre || "N/A"}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: "bold" }}>Fecha de cambio</TableCell>
-                      <TableCell>
-                        {new Date(
-                          selectedMuestra.historial[selectedMuestra.historial.length - 1].fechaCambio
-                        ).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: "bold" }}>Observaciones Hist.</TableCell>
-                      <TableCell>
-                        {selectedMuestra.historial[selectedMuestra.historial.length - 1].observaciones || "N/A"}
-                      </TableCell>
-                    </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  </Box>
+                </Box>
+                
+                {/* Mini estadísticas */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 3, 
+                  mt: 2, 
+                  pt: 2, 
+                  borderTop: '1px solid #e0e0e0',
+                  flexWrap: 'wrap'
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: selectedMuestra.tipoAnalisis === 'Fisicoquímico' ? '#2196F3' : '#9C27B0' 
+                    }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {selectedMuestra.tipoAnalisis || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: '#FF9800' 
+                    }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {Array.isArray(selectedMuestra.analisisSeleccionados) 
+                        ? `${selectedMuestra.analisisSeleccionados.length} análisis`
+                        : "Sin análisis"}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: '#4CAF50' 
+                    }} />                    <Typography variant="body2" color="text.secondary">
+                      {selectedMuestra.tipoMuestreo || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%', 
+                      backgroundColor: '#795548' 
+                    }} />                    <Typography variant="body2" color="text.secondary">
+                      {(() => {
+                        const campos = [
+                          selectedMuestra.lugarMuestreo,
+                          selectedMuestra.fechaHoraMuestreo,
+                          selectedMuestra.condicionesAmbientales,
+                          selectedMuestra.preservacionMuestra,
+                          selectedMuestra.planMuestreo,
+                          selectedMuestra.tipoDeAgua?.tipo
+                        ];
+                        const completados = campos.filter(campo => {
+                          if (!campo) return false;
+                          if (typeof campo === 'string') {
+                            return campo.trim() !== '';
+                          }
+                          if (typeof campo === 'object') {
+                            return true; // Si es un objeto, considerarlo como completado
+                          }
+                          return Boolean(campo); // Para otros tipos de datos
+                        }).length;
+                        const porcentaje = Math.round((completados / campos.length) * 100);
+                        return `${porcentaje}% completo`;
+                      })()}
+                    </Typography>
+                  </Box>
+                </Box>              </CardContent>
+            </Card>
+
+            <Grid container spacing={2}>{/* Información del Cliente */}
+              {!hideClientData && (
+                <Grid item xs={12} md={6}>
+                  <Card sx={{ 
+                    height: '100%', 
+                    boxShadow: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}>                    <CardContent sx={{ p: 2.5 }}>
+                      <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                        <AssignmentIcon sx={{ mr: 1 }} />
+                        Información del Cliente
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Box>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Cliente
+                          </Typography>
+                          <Typography variant="body1">
+                            {selectedMuestra.nombreCliente || selectedMuestra.cliente?.nombre || "No encontrado"}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Documento
+                          </Typography>
+                          <Typography variant="body1">
+                            {selectedMuestra.documento || selectedMuestra.cliente?.documento || "N/A"}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Fecha de Creación
+                          </Typography>
+                          <Typography variant="body1">
+                            {selectedMuestra.creadoPor?.fechaCreacion?.fecha ? (
+                              `${selectedMuestra.creadoPor.fechaCreacion.fecha} - ${(() => {
+                                const hora = selectedMuestra.creadoPor?.fechaCreacion?.hora;
+                                if (!hora) return "N/A";
+                                const [hours, minutes] = hora.split(":");
+                                let hours12 = parseInt(hours, 10) % 12 || 12;
+                                const ampm = parseInt(hours, 10) >= 12 ? "PM" : "AM";
+                                return `${hours12}:${minutes} ${ampm}`;
+                              })()}`
+                            ) : "N/A"}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}              {/* Información de Muestreo */}
+              <Grid item xs={12} md={hideClientData ? 12 : 6}>
+                <Card sx={{ 
+                  height: '100%', 
+                  boxShadow: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}>                  <CardContent sx={{ p: 2.5 }}>
+                    <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                      <ScienceIcon sx={{ mr: 1 }} />
+                      Información de Muestreo
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <Box sx={{ display: 'flex', gap: 4 }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Tipo de Análisis
+                          </Typography>
+                          <Chip 
+                            label={selectedMuestra.tipoAnalisis || "N/A"} 
+                            color={selectedMuestra.tipoAnalisis === 'Fisicoquímico' ? 'primary' : 'secondary'}
+                            variant="outlined"
+                          />
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                            Tipo de Muestreo
+                          </Typography>
+                          <Typography variant="body1">
+                            {selectedMuestra.tipoMuestreo || "N/A"}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                          Fecha y Hora de Muestreo
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {formatFechaHora(selectedMuestra.fechaHoraMuestreo)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                          Lugar de Muestreo
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedMuestra.lugarMuestreo || "N/A"}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>              {/* Análisis y Tipo de Agua */}
+              <Grid item xs={12} md={6}>
+                <Card sx={{ 
+                  height: '100%', 
+                  boxShadow: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}>                  <CardContent sx={{ p: 2.5 }}>
+                    <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold' }}>
+                      Tipo de Agua y Análisis
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                          Tipo de Agua
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedMuestra.tipoDeAgua?.descripcionCompleta ||
+                            selectedMuestra.tipoDeAgua?.tipo ||
+                            "N/A"}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1 }}>
+                          Análisis Seleccionados
+                        </Typography>
+                        {Array.isArray(selectedMuestra.analisisSeleccionados) && selectedMuestra.analisisSeleccionados.length > 0 ? (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {selectedMuestra.analisisSeleccionados.map((analisis, index) => {
+                              const nombreAnalisis = typeof analisis === "object" && analisis !== null
+                                ? analisis.nombre || "Desconocido"
+                                : analisis;
+                              return (
+                                <Chip
+                                  key={index}
+                                  label={nombreAnalisis}
+                                  size="small"
+                                  sx={{ 
+                                    backgroundColor: '#e8f5e9', 
+                                    color: '#2e7d32',
+                                    fontWeight: 'medium'
+                                  }}
+                                />
+                              );
+                            })}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            No se han seleccionado análisis
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>              {/* Preservación y Plan */}
+              <Grid item xs={12} md={6}>
+                <Card sx={{ 
+                  height: '100%', 
+                  boxShadow: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}>                  <CardContent sx={{ p: 2.5 }}>
+                    <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold' }}>
+                      Preservación y Plan
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                          Plan de Muestreo
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedMuestra.planMuestreo || "N/A"}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                          Preservación de Muestra
+                        </Typography>
+                        <Typography variant="body1">
+                          {selectedMuestra.preservacionMuestra || "N/A"}
+                          {selectedMuestra.preservacionMuestra === "Otro" && selectedMuestra.preservacionMuestraOtra && (
+                            <Typography component="span" sx={{ fontStyle: 'italic', ml: 1 }}>
+                              ({selectedMuestra.preservacionMuestraOtra})
+                            </Typography>
+                          )}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>              {/* Condiciones Ambientales */}
+              <Grid item xs={12}>
+                <Card sx={{ 
+                  boxShadow: 2,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: 4
+                  }
+                }}>                  <CardContent sx={{ p: 2.5 }}>
+                    <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold' }}>
+                      Condiciones Ambientales
+                    </Typography>
+                    <Typography variant="body1" sx={{ 
+                      backgroundColor: '#f5f5f5', 
+                      p: 1.5, 
+                      borderRadius: 1,
+                      minHeight: '50px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      fontSize: '0.9rem'
+                    }}>
+                      {selectedMuestra.condicionesAmbientales || "No especificadas"}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>              {/* Observaciones */}
+              {selectedMuestra.observaciones && (
+                <Grid item xs={12}>
+                  <Card sx={{ 
+                    boxShadow: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}>                    <CardContent sx={{ p: 2.5 }}>
+                      <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold' }}>
+                        Observaciones
+                      </Typography>
+                      <Typography variant="body1" sx={{ 
+                        backgroundColor: '#fff3e0', 
+                        p: 1.5, 
+                        borderRadius: 1,
+                        borderLeft: '4px solid #ff9800',
+                        fontSize: '0.9rem'
+                      }}>
+                        {selectedMuestra.observaciones}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}              {/* Historial */}
+              {selectedMuestra.historial && selectedMuestra.historial.length > 0 && (
+                <Grid item xs={12}>
+                  <Card sx={{ 
+                    boxShadow: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}>                    <CardContent sx={{ p: 2.5 }}>
+                      <Typography variant="h6" sx={{ mb: 1.5, color: '#39A900', fontWeight: 'bold' }}>
+                        Historial de Cambios
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', gap: 4 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                              Creada por
+                            </Typography>
+                            <Typography variant="body1">
+                              {selectedMuestra.historial[selectedMuestra.historial.length - 1].administrador?.nombre || "N/A"}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                              Fecha de cambio
+                            </Typography>
+                            <Typography variant="body1">
+                              {new Date(
+                                selectedMuestra.historial[selectedMuestra.historial.length - 1].fechaCambio
+                              ).toLocaleString()}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        {selectedMuestra.historial[selectedMuestra.historial.length - 1].observaciones && (
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'bold' }}>
+                              Observaciones del Historial
+                            </Typography>                            <Typography variant="body1" sx={{ 
+                              backgroundColor: '#f5f5f5', 
+                              p: 1.5, 
+                              borderRadius: 1,
+                              fontStyle: 'italic',
+                              fontSize: '0.9rem'
+                            }}>
+                              {selectedMuestra.historial[selectedMuestra.historial.length - 1].observaciones}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}            </Grid>
+          </Box>
         )}
-      </Box>
+        </Box>
+      </Fade>
     </Modal>
   );
 };
@@ -1440,21 +1755,20 @@ const Muestras = memo(() => {
   const handleSnackbarClose = (event, reason) => {
     if (reason === "clickaway") return;
     setSnackbarOpen(false);
-  };
-
-  const modalStyle = {
+  };  const modalStyle = {
     position: "absolute",
     top: "50%",
     left: "50%",
     transform: "translate(-50%, -50%)",
-    width: 600,
+    width: '90vw',
+    maxWidth: 1000,
     bgcolor: "background.paper",
     boxShadow: 24,
-    p: 4,
+    p: 3,
     borderRadius: 2,
     maxHeight: "90vh",
     overflowY: "auto",
-  };  // Función para obtener todas las muestras (sin filtros del servidor)
+  };// Función para obtener todas las muestras (sin filtros del servidor)
   const fetchAllMuestras = useCallback(async () => {
     try {
       setLoading(true);

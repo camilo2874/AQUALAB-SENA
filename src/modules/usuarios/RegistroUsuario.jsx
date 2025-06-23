@@ -15,7 +15,8 @@ import {
   InputAdornment,
   FormControl,
   InputLabel,
-  Divider
+  Divider,
+  IconButton
 } from "@mui/material";
 import axios from "axios";
 import AuthContext from "../../context/AuthContext"; // Ajusta la ruta si es necesario
@@ -30,6 +31,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import WorkIcon from '@mui/icons-material/Work';
 import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 const RegistroUsuario = () => {
   const { tipoUsuario } = useContext(AuthContext);
@@ -51,6 +54,7 @@ const RegistroUsuario = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
+  const [mostrarPassword, setMostrarPassword] = useState(false);
   const [errores, setErrores] = useState({
     nombre: "",
     documento: "",
@@ -70,23 +74,28 @@ const RegistroUsuario = () => {
   const manejarCambio = (e) => {
     const { name, value } = e.target;
     
+    // Campos que deben convertirse a mayúsculas
+    const camposMayusculas = ['direccion', 'razonSocial', 'especialidad', 'codigoSeguridad'];
+    
     // Si se selecciona "persona natural" como tipo de cliente, limpiar razón social
     if (name === "tipo_cliente" && value === "persona natural") {
       setUsuario({ ...usuario, [name]: value, razonSocial: "" });
     } else {
-      setUsuario({ ...usuario, [name]: value });
+      // Convertir a mayúsculas si el campo está en la lista
+      const valorFinal = camposMayusculas.includes(name) ? value.toUpperCase() : value;
+      setUsuario({ ...usuario, [name]: valorFinal });
     }
     
     setSnackbarOpen(false);
   };
-
   // Función para manejar solo letras en el nombre
   const manejarCambioNombre = (e) => {
     const { value } = e.target;
     const soloLetras = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]*$/;
     
     if (soloLetras.test(value) || value === "") {
-      setUsuario({ ...usuario, nombre: value });
+      // Convertir el nombre a mayúsculas
+      setUsuario({ ...usuario, nombre: value.toUpperCase() });
       setErrores({ ...errores, nombre: "" });
       setSnackbarOpen(false);
     } else {
@@ -122,7 +131,11 @@ const RegistroUsuario = () => {
       setErrores({ ...errores, telefono: "⚠ El teléfono no puede tener más de 10 dígitos" });
     } else {
       setErrores({ ...errores, telefono: "⚠ El teléfono solo puede contener números" });
-    }
+    }  };
+
+  // Función para alternar la visibilidad de la contraseña
+  const alternarVisibilidadPassword = () => {
+    setMostrarPassword(!mostrarPassword);
   };
 
   const handleSnackbarClose = (event, reason) => {
@@ -727,11 +740,10 @@ const RegistroUsuario = () => {
                 '0%': { opacity: 0, transform: 'translateY(15px)' },
                 '100%': { opacity: 1, transform: 'translateY(0)' }
               }
-            }}>
-              <TextField
+            }}>              <TextField
                 label="Contraseña"
                 name="password"
-                type="password"
+                type={mostrarPassword ? "text" : "password"}
                 value={usuario.password}
                 onChange={manejarCambio}
                 fullWidth
@@ -741,6 +753,23 @@ const RegistroUsuario = () => {
                   startAdornment: (
                     <InputAdornment position="start">
                       <LockIcon sx={{ color: '#39A900' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="alternar visibilidad de contraseña"
+                        onClick={alternarVisibilidadPassword}
+                        edge="end"
+                        sx={{ 
+                          color: '#39A900',
+                          '&:hover': {
+                            backgroundColor: 'rgba(57,169,0,0.1)'
+                          }
+                        }}
+                      >
+                        {mostrarPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </IconButton>
                     </InputAdornment>
                   ),
                 }}
