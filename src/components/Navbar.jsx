@@ -51,6 +51,9 @@ const Navbar = () => {
   const isOnline = useNetworkStatus();
   const navigate = useNavigate();
 
+  // Verificar si el usuario tiene permisos para ver notificaciones (solo administradores)
+  const canViewNotifications = user?.rol === 'administrador' || user?.rol === 'super_admin';
+
   // Estado para controlar el menú del avatar
   const [anchorEl, setAnchorEl] = useState(null);
   
@@ -146,197 +149,201 @@ const Navbar = () => {
           {/* Indicador de Estado de Conexión */}
           <ConnectionStatus />
 
-          {/* Sistema de Notificaciones */}
-          <IconButton 
-            size="large" 
-            sx={{ color: "white", mr: 1 }}
-            onClick={handleNotificationClick}
-          >
-            <Badge 
-              badgeContent={unreadCount} 
-              color="error"
-              sx={{
-                '& .MuiBadge-badge': {
-                  animation: unreadCount > 0 ? `${pulse} 2s infinite` : 'none',
-                }
-              }}
+          {/* Sistema de Notificaciones - Solo para administradores */}
+          {canViewNotifications && (
+            <IconButton 
+              size="large" 
+              sx={{ color: "white", mr: 1 }}
+              onClick={handleNotificationClick}
             >
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
+              <Badge 
+                badgeContent={unreadCount} 
+                color="error"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    animation: unreadCount > 0 ? `${pulse} 2s infinite` : 'none',
+                  }
+                }}
+              >
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+          )}
 
-          {/* Menú de Notificaciones */}
-          <Popper
-            open={notificationOpen}
-            anchorEl={notificationAnchorEl}
-            placement="bottom-end"
-            transition
-            disablePortal
-            sx={{ zIndex: 1300 }}
-          >
-            {({ TransitionProps }) => (
-              <Grow {...TransitionProps}>
-                <Paper
-                  sx={{
-                    mt: 1,
-                    borderRadius: 2,
-                    minWidth: 360,
-                    maxWidth: 400,
-                    maxHeight: 500,
-                    backgroundColor: "#ffffff",
-                    boxShadow: "0px 4px 20px rgba(0,0,0,0.15)",
-                    border: '1px solid #e0e0e0'
-                  }}
-                >
-                  <ClickAwayListener onClickAway={handleNotificationClose}>
-                    <Box>
-                      {/* Header de notificaciones */}
-                      <Box sx={{ 
-                        p: 2, 
-                        bgcolor: '#39A900', 
-                        color: 'white',
-                        borderRadius: '8px 8px 0 0',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                          Notificaciones ({notifications.length})
-                        </Typography>
-                        {notifications.length > 0 && (
-                          <IconButton
-                            size="small"
-                            onClick={handleClearAllNotifications}
-                            sx={{ 
-                              color: 'white',
-                              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
-                            }}
-                            title="Eliminar todas las notificaciones"
-                          >
-                            <ClearAllIcon />
-                          </IconButton>
-                        )}
-                      </Box>
+          {/* Menú de Notificaciones - Solo para administradores */}
+          {canViewNotifications && (
+            <Popper
+              open={notificationOpen}
+              anchorEl={notificationAnchorEl}
+              placement="bottom-end"
+              transition
+              disablePortal
+              sx={{ zIndex: 1300 }}
+            >
+              {({ TransitionProps }) => (
+                <Grow {...TransitionProps}>
+                  <Paper
+                    sx={{
+                      mt: 1,
+                      borderRadius: 2,
+                      minWidth: 360,
+                      maxWidth: 400,
+                      maxHeight: 500,
+                      backgroundColor: "#ffffff",
+                      boxShadow: "0px 4px 20px rgba(0,0,0,0.15)",
+                      border: '1px solid #e0e0e0'
+                    }}
+                  >
+                    <ClickAwayListener onClickAway={handleNotificationClose}>
+                      <Box>
+                        {/* Header de notificaciones */}
+                        <Box sx={{ 
+                          p: 2, 
+                          bgcolor: '#39A900', 
+                          color: 'white',
+                          borderRadius: '8px 8px 0 0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                            Notificaciones ({notifications.length})
+                          </Typography>
+                          {notifications.length > 0 && (
+                            <IconButton
+                              size="small"
+                              onClick={handleClearAllNotifications}
+                              sx={{ 
+                                color: 'white',
+                                '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+                              }}
+                              title="Eliminar todas las notificaciones"
+                            >
+                              <ClearAllIcon />
+                            </IconButton>
+                          )}
+                        </Box>
 
-                      {/* Lista de notificaciones */}
-                      <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-                        {notifications.length === 0 ? (
-                          <Box sx={{ p: 3, textAlign: 'center' }}>
-                            <Typography variant="body2" color="text.secondary">
-                              No hay notificaciones nuevas
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <List sx={{ p: 0 }}>
-                            {notifications.map((notification, index) => (
-                              <ListItem
-                                key={notification.id}
-                                sx={{
-                                  borderBottom: index < notifications.length - 1 ? '1px solid #f0f0f0' : 'none',
-                                  '&:hover': { backgroundColor: '#f8f9fa' },
-                                  flexDirection: 'column',
-                                  alignItems: 'stretch',
-                                  py: 1.5
-                                }}
-                              >
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'flex-start',
-                                  width: '100%',
-                                  mb: 1
-                                }}>
-                                  <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
-                                    <ScienceIcon 
-                                      sx={{ 
-                                        color: notification.leida ? '#9e9e9e' : '#39A900',
-                                        fontSize: 20
-                                      }} 
-                                    />
-                                  </ListItemIcon>
-                                  <Box sx={{ flex: 1 }}>
-                                    <ListItemText
-                                      primary={
-                                        <Typography 
-                                          variant="subtitle2" 
-                                          sx={{ 
-                                            fontWeight: notification.leida ? 'normal' : 'bold',
-                                            color: notification.leida ? 'text.secondary' : 'text.primary'
-                                          }}
-                                        >
-                                          {notification.titulo}
-                                        </Typography>
-                                      }
-                                      secondary={
-                                        <Typography 
-                                          variant="body2" 
-                                          sx={{ 
-                                            color: 'text.secondary',
-                                            fontSize: '0.875rem'
-                                          }}
-                                        >
-                                          {notification.mensaje}
-                                        </Typography>
-                                      }
-                                    />
-                                    {!notification.leida && (
-                                      <Chip
-                                        label="Nueva"
-                                        size="small"
-                                        sx={{
-                                          bgcolor: '#39A900',
-                                          color: 'white',
-                                          fontSize: '0.7rem',
-                                          height: 20,
-                                          mt: 0.5
-                                        }}
+                        {/* Lista de notificaciones */}
+                        <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+                          {notifications.length === 0 ? (
+                            <Box sx={{ p: 3, textAlign: 'center' }}>
+                              <Typography variant="body2" color="text.secondary">
+                                No hay notificaciones nuevas
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <List sx={{ p: 0 }}>
+                              {notifications.map((notification, index) => (
+                                <ListItem
+                                  key={notification.id}
+                                  sx={{
+                                    borderBottom: index < notifications.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                    '&:hover': { backgroundColor: '#f8f9fa' },
+                                    flexDirection: 'column',
+                                    alignItems: 'stretch',
+                                    py: 1.5
+                                  }}
+                                >
+                                  <Box sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'flex-start',
+                                    width: '100%',
+                                    mb: 1
+                                  }}>
+                                    <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
+                                      <ScienceIcon 
+                                        sx={{ 
+                                          color: notification.leida ? '#9e9e9e' : '#39A900',
+                                          fontSize: 20
+                                        }} 
                                       />
-                                    )}
+                                    </ListItemIcon>
+                                    <Box sx={{ flex: 1 }}>
+                                      <ListItemText
+                                        primary={
+                                          <Typography 
+                                            variant="subtitle2" 
+                                            sx={{ 
+                                              fontWeight: notification.leida ? 'normal' : 'bold',
+                                              color: notification.leida ? 'text.secondary' : 'text.primary'
+                                            }}
+                                          >
+                                            {notification.titulo}
+                                          </Typography>
+                                        }
+                                        secondary={
+                                          <Typography 
+                                            variant="body2" 
+                                            sx={{ 
+                                              color: 'text.secondary',
+                                              fontSize: '0.875rem'
+                                            }}
+                                          >
+                                            {notification.mensaje}
+                                          </Typography>
+                                        }
+                                      />
+                                      {!notification.leida && (
+                                        <Chip
+                                          label="Nueva"
+                                          size="small"
+                                          sx={{
+                                            bgcolor: '#39A900',
+                                            color: 'white',
+                                            fontSize: '0.7rem',
+                                            height: 20,
+                                            mt: 0.5
+                                          }}
+                                        />
+                                      )}
+                                    </Box>
                                   </Box>
-                                </Box>
-                                
-                                {/* Botones de acción */}
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  gap: 1, 
-                                  justifyContent: 'flex-end',
-                                  width: '100%'
-                                }}>
-                                  <Button
-                                    size="small"
-                                    startIcon={<VisibilityIcon />}
-                                    onClick={() => handleNotificationDetail(notification)}
-                                    sx={{ 
-                                      fontSize: '0.75rem',
-                                      bgcolor: '#39A900',
-                                      color: 'white',
-                                      '&:hover': { bgcolor: '#2d8000' }
-                                    }}
-                                  >
-                                    Ver Detalle
-                                  </Button>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleRemoveNotification(notification.id)}
-                                    sx={{ 
-                                      color: '#f44336',
-                                      '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.1)' }
-                                    }}
-                                    title="Eliminar notificación"
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </ListItem>
-                            ))}
-                          </List>
-                        )}
+                                  
+                                  {/* Botones de acción */}
+                                  <Box sx={{ 
+                                    display: 'flex', 
+                                    gap: 1, 
+                                    justifyContent: 'flex-end',
+                                    width: '100%'
+                                  }}>
+                                    <Button
+                                      size="small"
+                                      startIcon={<VisibilityIcon />}
+                                      onClick={() => handleNotificationDetail(notification)}
+                                      sx={{ 
+                                        fontSize: '0.75rem',
+                                        bgcolor: '#39A900',
+                                        color: 'white',
+                                        '&:hover': { bgcolor: '#2d8000' }
+                                      }}
+                                    >
+                                      Ver Detalle
+                                    </Button>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleRemoveNotification(notification.id)}
+                                      sx={{ 
+                                        color: '#f44336',
+                                        '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.1)' }
+                                      }}
+                                      title="Eliminar notificación"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                </ListItem>
+                              ))}
+                            </List>
+                          )}
+                        </Box>
                       </Box>
-                    </Box>
-                  </ClickAwayListener>
-                </Paper>
-              </Grow>
-            )}
-          </Popper>
+                    </ClickAwayListener>
+                  </Paper>
+                </Grow>
+              )}
+            </Popper>
+          )}
 
           {/* Avatar interactivo con menú personalizado */}
           {user && (
@@ -420,13 +427,15 @@ const Navbar = () => {
         </Box>
       </Toolbar>
 
-      {/* Modal de Detalle de Notificación */}
-      <NotificationDetailModal
-        notification={selectedNotification}
-        open={detailModalOpen}
-        onClose={handleDetailModalClose}
-        onRemove={handleRemoveNotification}
-      />
+      {/* Modal de Detalle de Notificación - Solo para administradores */}
+      {canViewNotifications && (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          open={detailModalOpen}
+          onClose={handleDetailModalClose}
+          onRemove={handleRemoveNotification}
+        />
+      )}
     </AppBar>
   );
 };

@@ -89,9 +89,9 @@ const ListaResultados = memo(() => {
   const [filterEstado, setFilterEstado] = useState('todos');
   const [filterDate, setFilterDate] = useState('');
   const [selectedResult, setSelectedResult] = useState(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-  const [observacionesVerificacion, setObservacionesVerificacion] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });  const [observacionesVerificacion, setObservacionesVerificacion] = useState('');
   const [dialogoVerificacion, setDialogoVerificacion] = useState(false);
+  const [dialogoConfirmacion, setDialogoConfirmacion] = useState(false);
   const [verificando, setVerificando] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -274,8 +274,28 @@ const ListaResultados = memo(() => {
     const endIndex = startIndex + pagination.limit;
     return filteredResultados.slice(startIndex, endIndex);
   }, [filteredResultados, currentPage, pagination.limit]);
+  // Función para resetear estados de los diálogos
+  const resetearDialogos = useCallback(() => {
+    setDialogoVerificacion(false);
+    setDialogoConfirmacion(false);
+    setObservacionesVerificacion('');
+    setVerificando(false);
+  }, []);
 
   // Handlers memoizados
+  const handleProcederConFinalizacion = () => {
+    if (!observacionesVerificacion.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Las observaciones son obligatorias',
+        severity: 'error'
+      });
+      return;
+    }
+    setDialogoVerificacion(false);
+    setDialogoConfirmacion(true);
+  };
+
   const handleFinalizarMuestra = async () => {
     try {
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -301,12 +321,10 @@ const ListaResultados = memo(() => {
         }
       );
 
-      console.log("Respuesta de verificación:", response.data);
-
-      if (response.data.success) {
-        setDialogoVerificacion(false);
+      console.log("Respuesta de verificación:", response.data);      if (response.data.success) {
+        resetearDialogos();
         setSelectedResult(null);
-        setObservacionesVerificacion('');        setSnackbar({
+        setSnackbar({
           open: true,
           message: 'Muestra finalizada correctamente',
           severity: 'success'
@@ -1356,49 +1374,453 @@ const ListaResultados = memo(() => {
                 </>
               )}
             </Box>
-          </Modal>
-
+          </Modal>          {/* Diálogo mejorado para finalizar muestra */}
           <Dialog
             open={dialogoVerificacion}
             onClose={() => setDialogoVerificacion(false)}
+            maxWidth="md"
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 4,
+                background: 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
+                boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15)',
+                border: '1px solid rgba(57, 169, 0, 0.1)',
+                overflow: 'hidden'
+              }
+            }}
           >
-            <DialogTitle sx={{ color: '#39A900', fontWeight: 'bold' }}>Finalizar Muestra</DialogTitle>
-            <DialogContent>
-              <DialogContentText>
-                Por favor, ingrese las observaciones para finalizar la muestra:
-              </DialogContentText>
-              <TextField
-                autoFocus
-                margin="dense"
-                label="Observaciones"
-                type="text"
-                fullWidth
-                multiline
-                rows={4}
-                value={observacionesVerificacion}
-                onChange={(e) => setObservacionesVerificacion(e.target.value)}
-                sx={{ mt: 2, '& label.Mui-focused': { color: '#39A900' }, '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#39A900' } }}
-              />
+            {/* Header con gradiente */}
+            <Box sx={{
+              background: 'linear-gradient(135deg, #39A900 0%, #4CAF50 100%)',
+              color: 'white',
+              p: 3,
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '80px',
+                height: '80px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                transform: 'translate(20px, -20px)',
+              }
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.5rem'
+                  }}>
+                    ✅
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ 
+                      fontWeight: 'bold',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      Finalizar Análisis
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ 
+                      opacity: 0.9,
+                      fontSize: '1rem'
+                    }}>
+                      Muestra #{selectedResult?.idMuestra}
+                    </Typography>
+                  </Box>
+                </Box>
+                <IconButton
+                  onClick={() => setDialogoVerificacion(false)}
+                  sx={{
+                    color: 'white',
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                      transform: 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </Box>
+
+            <DialogContent sx={{ p: 4 }}>
+              {/* Información de la muestra */}
+              <Paper elevation={1} sx={{ 
+                p: 3, 
+                mb: 3, 
+                borderRadius: 3,
+                background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+                border: '1px solid rgba(57, 169, 0, 0.1)'
+              }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ 
+                      p: 2, 
+                      backgroundColor: 'rgba(57, 169, 0, 0.05)', 
+                      borderRadius: 2,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                        CLIENTE
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#39A900' }}>
+                        {selectedResult?.cliente?.nombre || 'Sin nombre'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ 
+                      p: 2, 
+                      backgroundColor: 'rgba(33, 150, 243, 0.05)', 
+                      borderRadius: 2,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="body2" sx={{ color: '#666', fontSize: '0.85rem', mb: 0.5 }}>
+                        LABORATORISTA
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1976D2' }}>
+                        {selectedResult?.nombreLaboratorista || 'No asignado'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              {/* Alerta informativa */}
+              <Box sx={{
+                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                border: '1px solid rgba(255, 193, 7, 0.3)',
+                borderRadius: 3,
+                p: 3,
+                mb: 3,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Box sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  backgroundColor: '#FFC107',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '1.2rem',
+                  fontWeight: 'bold'
+                }}>
+                  ⚠️
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#E65100', mb: 0.5 }}>
+                    Acción Irreversible
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#666' }}>
+                    Una vez finalizada la muestra, no podrá modificarse. Asegúrese de que todos los datos son correctos.
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Campo de observaciones mejorado */}
+              <Box>
+                <Typography variant="h6" sx={{ 
+                  color: '#39A900', 
+                  fontWeight: 'bold',
+                  mb: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  📝 Observaciones de Finalización *
+                </Typography>
+                <TextField
+                  autoFocus
+                  fullWidth
+                  multiline
+                  rows={5}
+                  placeholder="Ingrese observaciones detalladas sobre la finalización del análisis..."
+                  value={observacionesVerificacion}
+                  onChange={(e) => setObservacionesVerificacion(e.target.value)}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 3,
+                      backgroundColor: 'white',
+                      '& fieldset': {
+                        borderColor: 'rgba(57, 169, 0, 0.3)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(57, 169, 0, 0.5)',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#39A900',
+                      },
+                    },
+                    '& .MuiOutlinedInput-input': {
+                      fontSize: '1rem',
+                      lineHeight: 1.6
+                    }
+                  }}
+                  inputProps={{ 
+                    'aria-label': 'Observaciones de finalización',
+                    maxLength: 1000
+                  }}
+                />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                  <Typography variant="caption" sx={{ color: '#666' }}>
+                    Las observaciones son obligatorias para finalizar el análisis
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#666' }}>
+                    {observacionesVerificacion.length}/1000
+                  </Typography>
+                </Box>
+              </Box>
             </DialogContent>
-            <DialogActions>
-              <Button 
-                onClick={() => setDialogoVerificacion(false)}
-                color="inherit"
-                sx={{ fontWeight: 'bold' }}
+
+            <DialogActions sx={{ 
+              p: 3, 
+              borderTop: '1px solid rgba(0,0,0,0.1)',
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)'
+            }}>              <Button 
+                onClick={() => {
+                  resetearDialogos();
+                }}
+                variant="outlined"
+                sx={{ 
+                  borderColor: '#666', 
+                  color: '#666',
+                  fontWeight: 'bold',
+                  px: 3,
+                  py: 1,
+                  borderRadius: 3,
+                  '&:hover': { 
+                    borderColor: '#333',
+                    color: '#333',
+                    backgroundColor: 'rgba(0,0,0,0.05)'
+                  }
+                }}
               >
                 Cancelar
               </Button>
               <Button 
-                onClick={handleFinalizarMuestra}
+                onClick={handleProcederConFinalizacion}
                 variant="contained"
-                disabled={verificando || !observacionesVerificacion.trim()}
+                disabled={!observacionesVerificacion.trim()}
                 sx={{
-                  backgroundColor: '#39A900',
-                  '&:hover': { backgroundColor: '#2d8000' },
-                  fontWeight: 'bold'
+                  background: 'linear-gradient(135deg, #39A900 0%, #4CAF50 100%)',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  px: 4,
+                  py: 1,
+                  borderRadius: 3,
+                  boxShadow: '0 4px 15px rgba(57, 169, 0, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #2d8000 0%, #388E3C 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 20px rgba(57, 169, 0, 0.4)',
+                  },
+                  '&:disabled': {
+                    background: '#ccc',
+                    color: '#666',
+                    transform: 'none',
+                    boxShadow: 'none'
+                  },
+                  transition: 'all 0.3s ease',
                 }}
               >
-                {verificando ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Finalizar'}
+                Continuar
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Diálogo de confirmación final */}
+          <Dialog
+            open={dialogoConfirmacion}
+            onClose={() => !verificando && setDialogoConfirmacion(false)}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 4,
+                background: 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
+                boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15)',
+                border: '1px solid rgba(244, 67, 54, 0.1)',
+                overflow: 'hidden'
+              }
+            }}
+          >
+            {/* Header de confirmación */}
+            <Box sx={{
+              background: 'linear-gradient(135deg, #FF5722 0%, #F44336 100%)',
+              color: 'white',
+              p: 3,
+              textAlign: 'center'
+            }}>
+              <Box sx={{
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem',
+                margin: '0 auto 16px'
+              }}>
+                🔒
+              </Box>
+              <Typography variant="h5" sx={{ 
+                fontWeight: 'bold',
+                textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                mb: 1
+              }}>
+                Confirmar Finalización
+              </Typography>
+              <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
+                Esta acción no se puede deshacer
+              </Typography>
+            </Box>
+
+            <DialogContent sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ 
+                color: '#333',
+                fontWeight: 'bold',
+                mb: 2
+              }}>
+                ¿Está seguro de finalizar la muestra?
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#666',
+                mb: 3,
+                lineHeight: 1.6
+              }}>
+                Al confirmar, la muestra <strong>#{selectedResult?.idMuestra}</strong> será marcada como finalizada 
+                y no podrá realizar más modificaciones en los resultados.
+              </Typography>
+
+              {/* Resumen de la información */}
+              <Paper elevation={1} sx={{ 
+                p: 3, 
+                backgroundColor: 'rgba(57, 169, 0, 0.05)',
+                border: '1px solid rgba(57, 169, 0, 0.2)',
+                borderRadius: 3
+              }}>
+                <Typography variant="subtitle2" sx={{ 
+                  color: '#39A900', 
+                  fontWeight: 'bold',
+                  mb: 2
+                }}>
+                  Resumen de Finalización
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#666' }}>
+                      ID Muestra:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {selectedResult?.idMuestra}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#666' }}>
+                      Cliente:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {selectedResult?.cliente?.nombre || 'Sin nombre'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="caption" sx={{ color: '#666' }}>
+                    Observaciones:
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    fontWeight: 'bold',
+                    fontStyle: 'italic',
+                    backgroundColor: 'white',
+                    p: 2,
+                    borderRadius: 2,
+                    mt: 1,
+                    border: '1px solid rgba(0,0,0,0.1)'
+                  }}>
+                    "{observacionesVerificacion}"
+                  </Typography>
+                </Box>
+              </Paper>
+            </DialogContent>
+
+            <DialogActions sx={{ 
+              p: 3, 
+              borderTop: '1px solid rgba(0,0,0,0.1)',
+              justifyContent: 'center',
+              gap: 2
+            }}>
+              <Button 
+                onClick={() => {
+                  setDialogoConfirmacion(false);
+                  setDialogoVerificacion(true);
+                }}
+                variant="outlined"
+                disabled={verificando}
+                sx={{ 
+                  borderColor: '#666', 
+                  color: '#666',
+                  fontWeight: 'bold',
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 3,
+                  '&:hover': { 
+                    borderColor: '#333',
+                    color: '#333',
+                    backgroundColor: 'rgba(0,0,0,0.05)'
+                  }
+                }}
+              >
+                Volver Atrás
+              </Button>
+              <Button 
+                onClick={handleFinalizarMuestra}
+                variant="contained"
+                disabled={verificando}
+                sx={{
+                  background: verificando 
+                    ? '#ccc' 
+                    : 'linear-gradient(135deg, #FF5722 0%, #F44336 100%)',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 3,
+                  boxShadow: verificando 
+                    ? 'none' 
+                    : '0 4px 15px rgba(244, 67, 54, 0.3)',
+                  '&:hover': verificando ? {} : {
+                    background: 'linear-gradient(135deg, #E64A19 0%, #D32F2F 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 20px rgba(244, 67, 54, 0.4)',
+                  },
+                  transition: 'all 0.3s ease',
+                  minWidth: 140
+                }}
+              >
+                {verificando ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} sx={{ color: 'white' }} />
+                    <span>Finalizando...</span>
+                  </Box>
+                ) : (
+                  'Confirmar Finalización'
+                )}
               </Button>
             </DialogActions>
           </Dialog>
