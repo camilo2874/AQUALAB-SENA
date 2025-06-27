@@ -2415,11 +2415,13 @@ const Muestras = memo(() => {
                             />
                           </>
                         )}
-                        <MemoActionButton
-                          tooltip="Registrar Resultados"
-                          onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
-                          IconComponent={AssignmentIcon}
-                        />                      </Box>
+                        {tipoUsuario === "laboratorista" && (
+                          <MemoActionButton
+                            tooltip="Registrar Resultados"
+                            onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
+                            IconComponent={AssignmentIcon}
+                          />
+                        )}                      </Box>
                     </TableCell>
                   </TableRow>
                   ))
