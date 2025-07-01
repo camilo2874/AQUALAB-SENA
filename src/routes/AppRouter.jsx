@@ -6,7 +6,7 @@ import { CircularProgress, Box } from "@mui/material";
 import Layout from "../components/Layout";
 import PrivateRoute from "./PrivateRoute";
 import { createLazyComponent } from "../components/LazyLoad";
-// import { NotificationProvider } from "../context/NotificationContext";
+import { NotificationProvider } from "../context/NotificationContext";
 
 // Carga dinámica de páginas con prioridades
 // Páginas de alta prioridad (carga inmediata)
@@ -36,7 +36,7 @@ const Auditorias = createLazyComponent(() => import("../pages/Auditorias"));
 const AppRouter = () => {
   return (
     <Router>
-      {/* <NotificationProvider> */}
+      <NotificationProvider>
         <Suspense fallback={
           <Box sx={{
             display: 'flex',
@@ -54,8 +54,7 @@ const AppRouter = () => {
             <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
             <Route path="/restablecer-password" element={<CambiarContrasena />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
-            {/* Rutas protegidas desactivadas temporalmente para aislar el error */}
-            {/*
+            {/* Rutas protegidas */}
             <Route path="/" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
             <Route path="/dashboard" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
             <Route path="/users" element={<PrivateRoute allowedRoles={["administrador", "super_admin", "laboratorista"]}><Layout><Users /></Layout></PrivateRoute>} />
@@ -64,10 +63,9 @@ const AppRouter = () => {
             <Route path="/lista-resultados" element={<PrivateRoute allowedRoles={["laboratorista", "administrador", "super_admin"]}><Layout><ListaResultados /></Layout></PrivateRoute>} />
             <Route path="/registrar-resultados/:idMuestra" element={<PrivateRoute allowedRoles={["laboratorista", "administrador", "super_admin"]}><Layout><RegistrarResultados /></Layout></PrivateRoute>} />
             <Route path="/auditorias" element={<PrivateRoute><Layout><Auditorias /></Layout></PrivateRoute>} />
-            */}
           </Routes>
         </Suspense>
-      {/* </NotificationProvider> */}
+      </NotificationProvider>
     </Router>
   );
 };
