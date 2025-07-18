@@ -296,6 +296,22 @@ const RegistrarResultados = () => {
 
         const muestraData = muestraResponse.data.data.muestra;
         if (!isMounted) return;
+        
+        // Validar que el estado de la muestra permita registrar resultados
+        const estadosPermitidos = ['Recibida', 'En análisis'];
+        if (!estadosPermitidos.includes(muestraData.estado)) {
+          console.warn(`⚠️ Acceso denegado: El estado "${muestraData.estado}" no permite registrar resultados`);
+          setSnackbar({
+            open: true,
+            message: `No se pueden registrar resultados para muestras en estado "${muestraData.estado}". Solo se permite para muestras "Recibidas" o "En análisis".`,
+            severity: 'error'
+          });
+          setTimeout(() => {
+            navigate('/muestras');
+          }, 3000);
+          return;
+        }
+        
         setMuestraInfo(muestraData);
 
         // Intentar obtener los resultados existentes

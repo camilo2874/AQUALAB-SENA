@@ -210,16 +210,20 @@ function convertISOToFechaHoraObject(isoInput) {
 /**
  * Componente para el botón con tooltip.
  */
-const ActionButton = ({ tooltip, onClick, IconComponent }) => (
+const ActionButton = ({ tooltip, onClick, IconComponent, disabled = false, sx = {} }) => (
   <Tooltip title={tooltip} placement="top" arrow>
     <IconButton
+      disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (!disabled) {
+          onClick();
+        }
       }}
       sx={{
         transition: "transform 0.2s",
-        "&:hover": { transform: "scale(1.1)", backgroundColor: "rgba(57, 169, 0, 0.2)" },
+        "&:hover": disabled ? {} : { transform: "scale(1.1)", backgroundColor: "rgba(57, 169, 0, 0.2)" },
+        ...sx
       }}
     >
       <IconComponent />
@@ -2457,11 +2461,27 @@ const Muestras = memo(() => {
                           </>
                         )}
                         {tipoUsuario === "laboratorista" && (
-                          <MemoActionButton
-                            tooltip="Registrar Resultados"
-                            onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
-                            IconComponent={AssignmentIcon}
-                          />
+                          muestra.estado === "Recibida" || muestra.estado === "En análisis" ? (
+                            <MemoActionButton
+                              tooltip="Registrar Resultados"
+                              onClick={() => navigate(`/registrar-resultados/${muestra.id_muestrea || muestra.id_muestra || muestra._id}`)}
+                              IconComponent={AssignmentIcon}
+                            />
+                          ) : (
+                            <MemoActionButton
+                              tooltip={`No se pueden registrar resultados en estado "${muestra.estado}". Solo disponible para muestras "Recibidas" o "En análisis"`}
+                              onClick={() => {}}
+                              IconComponent={AssignmentIcon}
+                              disabled={true}
+                              sx={{ 
+                                opacity: 0.5,
+                                cursor: 'not-allowed',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                }
+                              }}
+                            />
+                          )
                         )}                      </Box>
                     </TableCell>
                   </TableRow>
