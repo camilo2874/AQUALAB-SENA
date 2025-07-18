@@ -94,6 +94,7 @@ import ScienceIcon from '@mui/icons-material/Science';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
+import WarningIcon from '@mui/icons-material/Warning';
 import AuthContext from "../context/AuthContext";
 import { muestrasService } from "../services/muestras.service";
 import { cambiosEstadoService } from "../services/cambiosEstado.service";
@@ -253,7 +254,7 @@ const getEstadoChipProps = (estado) => {
 /* ======================== MODALES ======================== */
 
 /* Modal de Detalle Completo: se muestran todos los datos */
-const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientData, tipoUsuario, onEstadoChange, onFirmarDocumento, isProcessing, setIsProcessing }) => {
+const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientData, tipoUsuario, onEstadoChange, onFirmarDocumento, isProcessing, setIsProcessing, onShowConfirmDialog }) => {
   
   const handleViewPDF = async () => {
     if (!selectedMuestra) return;
@@ -295,35 +296,39 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       ? "¿Está seguro de que desea rechazar esta muestra aceptada? Esta acción cambiará el estado de la muestra a 'Rechazada'."
       : "¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'.";
       
-    const confirmacion = window.confirm(mensaje);
-    if (!confirmacion) return;
-    
-    setIsProcessing(true);
-    try {
-      const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
+    // Usar la función de confirmación del componente principal
+    const ejecutarRechazo = async () => {
+      setIsProcessing(true);
       
-      // Actualizar el estado de la muestra a rechazada
-      const datosActualizacion = {
-        estado: "Rechazada"
-      };
+      try {
+        const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
+        
+        // Actualizar el estado de la muestra a rechazada
+        const datosActualizacion = {
+          estado: "Rechazada"
+        };
 
-      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
-      
-      // Actualizar la muestra local
-      const muestraActualizada = {
-        ...selectedMuestra,
-        estado: "Rechazada"
-      };
-      
-      onEstadoChange(muestraActualizada);
-      onClose(); // Cerrar modal después de rechazar
-      
-    } catch (error) {
-      console.error("Error al rechazar:", error);
-      alert(`Error al rechazar la ${esAceptada ? 'muestra' : 'cotización'}: ` + error.message);
-    } finally {
-      setIsProcessing(false);
-    }
+        await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
+        
+        // Actualizar la muestra local
+        const muestraActualizada = {
+          ...selectedMuestra,
+          estado: "Rechazada"
+        };
+        
+        onEstadoChange(muestraActualizada);
+        onClose(); // Cerrar modal después de rechazar
+        
+      } catch (error) {
+        console.error("Error al rechazar:", error);
+        const esAceptada = selectedMuestra.estado === "Aceptada";
+        alert(`Error al rechazar la ${esAceptada ? 'muestra' : 'cotización'}: ` + error.message);
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+
+    onShowConfirmDialog(mensaje, ejecutarRechazo);
   };
   const esCotizacion = selectedMuestra?.estado === "En Cotización" || selectedMuestra?.estado === "En Cotizacion";
   const esAceptada = selectedMuestra?.estado === "Aceptada";  return (
@@ -1706,6 +1711,12 @@ const Muestras = memo(() => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
+  
+  // Estados para el modal de confirmación de rechazo
+  const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
+  const [rejectionMessage, setRejectionMessage] = useState("");
+  const [rejectionCallback, setRejectionCallback] = useState(null);
+  
   // Estados para el modal de firmas
   const [openFirmasModal, setOpenFirmasModal] = useState(false);
   const [firmas, setFirmas] = useState({
@@ -2079,6 +2090,28 @@ const Muestras = memo(() => {
     setPagination((prev) => ({ ...prev, page: value }));
   }, []);
 
+  // Funciones para manejar el modal de confirmación de rechazo
+  const handleShowConfirmDialog = useCallback((message, callback) => {
+    setRejectionMessage(message);
+    setRejectionCallback(() => callback);
+    setOpenConfirmDialog(true);
+  }, []);
+
+  const handleConfirmRejection = useCallback(async () => {
+    setOpenConfirmDialog(false);
+    if (rejectionCallback) {
+      await rejectionCallback();
+    }
+    setRejectionCallback(null);
+    setRejectionMessage("");
+  }, [rejectionCallback]);
+
+  const handleCancelRejection = useCallback(() => {
+    setOpenConfirmDialog(false);
+    setRejectionCallback(null);
+    setRejectionMessage("");
+  }, []);
+
   // Funciones para manejar las firmas
   const handleFirmarDocumento = async () => {
     if (!selectedMuestra || isProcessing) return;
@@ -2447,6 +2480,7 @@ const Muestras = memo(() => {
           onFirmarDocumento={handleFirmarDocumento}
           isProcessing={isProcessing}
           setIsProcessing={setIsProcessing}
+          onShowConfirmDialog={handleShowConfirmDialog}
         /><EditMuestraModal
           editingMuestra={editingMuestra}
           setEditingMuestra={setEditingMuestra}
@@ -2667,6 +2701,66 @@ const Muestras = memo(() => {
             {snackbarMessage}
           </Alert>
         </Snackbar>
+
+        {/* Modal de Confirmación de Rechazo */}
+        <Modal
+          open={openConfirmDialog}
+          onClose={handleCancelRejection}
+          closeAfterTransition
+          BackdropComponent={Backdrop}
+          BackdropProps={{
+            timeout: 500,
+          }}
+        >
+          <Fade in={openConfirmDialog}>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '90%',
+                maxWidth: 500,
+                bgcolor: 'background.paper',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                p: 4,
+                borderRadius: 3,
+                textAlign: 'center'
+              }}
+            >
+              <Box sx={{ mb: 3 }}>
+                <WarningIcon sx={{ fontSize: 48, color: '#ff9800', mb: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f', mb: 2 }}>
+                  Confirmar Rechazo
+                </Typography>
+                <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                  {rejectionMessage}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleConfirmRejection}
+                  disabled={isProcessing}
+                  startIcon={isProcessing ? <CircularProgress size={20} /> : null}
+                  sx={{ px: 3, py: 1 }}
+                >
+                  {isProcessing ? 'Procesando...' : 'Sí, Rechazar'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleCancelRejection}
+                  disabled={isProcessing}
+                  sx={{ px: 3, py: 1 }}
+                >
+                  Cancelar
+                </Button>
+              </Box>
+            </Box>
+          </Fade>
+        </Modal>
       </Box>
     </Box>
   );
