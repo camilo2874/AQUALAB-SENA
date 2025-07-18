@@ -297,15 +297,16 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       : "¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'.";
       
     // Usar la función de confirmación del componente principal
-    const ejecutarRechazo = async () => {
+    const ejecutarRechazo = async (motivoRechazo) => {
       setIsProcessing(true);
       
       try {
         const idMuestra = selectedMuestra.id_muestra || selectedMuestra.id_muestrea || selectedMuestra._id;
         
-        // Actualizar el estado de la muestra a rechazada
+        // Actualizar el estado de la muestra a rechazada e incluir el motivo
         const datosActualizacion = {
-          estado: "Rechazada"
+          estado: "Rechazada",
+          observaciones: motivoRechazo || "Sin observaciones específicas"
         };
 
         await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
@@ -313,7 +314,8 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
         // Actualizar la muestra local
         const muestraActualizada = {
           ...selectedMuestra,
-          estado: "Rechazada"
+          estado: "Rechazada",
+          observaciones: motivoRechazo
         };
         
         onEstadoChange(muestraActualizada);
@@ -1716,6 +1718,7 @@ const Muestras = memo(() => {
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
   const [rejectionMessage, setRejectionMessage] = useState("");
   const [rejectionCallback, setRejectionCallback] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   
   // Estados para el modal de firmas
   const [openFirmasModal, setOpenFirmasModal] = useState(false);
@@ -2098,18 +2101,25 @@ const Muestras = memo(() => {
   }, []);
 
   const handleConfirmRejection = useCallback(async () => {
+    if (!rejectionReason.trim()) {
+      // Si no hay motivo, no proceder
+      return;
+    }
+    
     setOpenConfirmDialog(false);
     if (rejectionCallback) {
-      await rejectionCallback();
+      await rejectionCallback(rejectionReason);
     }
     setRejectionCallback(null);
     setRejectionMessage("");
-  }, [rejectionCallback]);
+    setRejectionReason("");
+  }, [rejectionCallback, rejectionReason]);
 
   const handleCancelRejection = useCallback(() => {
     setOpenConfirmDialog(false);
     setRejectionCallback(null);
     setRejectionMessage("");
+    setRejectionReason("");
   }, []);
 
   // Funciones para manejar las firmas
@@ -2733,9 +2743,34 @@ const Muestras = memo(() => {
                 <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#d32f2f', mb: 2 }}>
                   Confirmar Rechazo
                 </Typography>
-                <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
                   {rejectionMessage}
                 </Typography>
+                
+                {/* Campo para el motivo del rechazo */}
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Motivo del rechazo (requerido)"
+                  placeholder="Debe especificar el motivo del rechazo en las observaciones"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  sx={{ 
+                    mb: 2,
+                    '& .MuiOutlinedInput-root': {
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#d32f2f',
+                      },
+                    },
+                    '& .MuiInputLabel-root.Mui-focused': {
+                      color: '#d32f2f',
+                    },
+                  }}
+                  required
+                  error={!rejectionReason.trim() && rejectionReason !== ""}
+                  helperText={!rejectionReason.trim() && rejectionReason !== "" ? "El motivo del rechazo es obligatorio" : ""}
+                />
               </Box>
               
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -2743,7 +2778,7 @@ const Muestras = memo(() => {
                   variant="contained"
                   color="error"
                   onClick={handleConfirmRejection}
-                  disabled={isProcessing}
+                  disabled={isProcessing || !rejectionReason.trim()}
                   startIcon={isProcessing ? <CircularProgress size={20} /> : null}
                   sx={{ px: 3, py: 1 }}
                 >
