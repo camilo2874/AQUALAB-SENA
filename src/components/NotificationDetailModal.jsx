@@ -11,7 +11,9 @@ import {
   Box,
   Divider,
   IconButton,
-  CircularProgress
+  CircularProgress,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -20,13 +22,17 @@ import {
   CalendarToday as CalendarIcon,
   Person as PersonIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Warning as WarningIcon,
+  Error as ErrorIcon
 } from '@mui/icons-material';
 import { cambiosEstadoService } from '../services/cambiosEstado.service';
 import { muestrasService } from '../services/muestras.service';
 
 const NotificationDetailModal = ({ notification, open, onClose, onRemove }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: '', message: '' });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   
   if (!notification || !notification.muestra) return null;
 
@@ -66,6 +72,23 @@ const NotificationDetailModal = ({ notification, open, onClose, onRemove }) => {
           }
         };
     }
+  };
+
+  // Funciones para mostrar mensajes
+  const showSnackbar = (message, severity = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const showConfirmDialog = (type, message) => {
+    setConfirmDialog({ open: true, type, message });
+  };
+
+  const handleConfirmClose = () => {
+    setConfirmDialog({ open: false, type: '', message: '' });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
   };  const handleRemoveAndClose = () => {
     onRemove(notification.id);
     onClose();
@@ -80,12 +103,17 @@ const NotificationDetailModal = ({ notification, open, onClose, onRemove }) => {
         // Usar el servicio de cambios de estado para aceptar la cotización
       await cambiosEstadoService.aceptarCotizacion(idMuestra);
       
+      // Mostrar mensaje de éxito
+      showSnackbar('¡Muestra aceptada exitosamente!', 'success');
+      
       // Remover la notificación y cerrar el modal
-      handleRemoveAndClose();
+      setTimeout(() => {
+        handleRemoveAndClose();
+      }, 1500);
       
     } catch (error) {
       console.error("Error al aceptar muestra:", error);
-      alert("Error al aceptar la muestra: " + error.message);
+      showSnackbar(`Error al aceptar la muestra: ${error.message}`, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -94,45 +122,51 @@ const NotificationDetailModal = ({ notification, open, onClose, onRemove }) => {
   const handleRechazarMuestra = async () => {
     if (!muestra || isProcessing) return;
     
-    const confirmacion = window.confirm(
-      "¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a 'Rechazada'."
-    );
-    if (!confirmacion) return;
-    
+    // Mostrar diálogo de confirmación personalizado
+    showConfirmDialog('rechazar', '¿Está seguro de que desea rechazar esta cotización? Esta acción cambiará el estado de la muestra a "Rechazada".');
+  };
+
+  const executeRechazarMuestra = async () => {
     setIsProcessing(true);
     try {
       const idMuestra = muestra.id_muestra || muestra.id_muestrea || muestra._id;
       
       // Actualizar el estado de la muestra a rechazada
       const datosActualizacion = {
-        estado: "Rechazada",
-        observaciones: (muestra.observaciones || '') + `\n[SISTEMA] Cotización rechazada por el cliente desde notificación`
+        estado: "Rechazada"
       };      await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
       
+      // Mostrar mensaje de éxito
+      showSnackbar('Muestra rechazada correctamente', 'warning');
+      
       // Remover la notificación y cerrar el modal
-      handleRemoveAndClose();
+      setTimeout(() => {
+        handleRemoveAndClose();
+      }, 1500);
       
     } catch (error) {
       console.error("Error al rechazar muestra:", error);
-      alert("Error al rechazar la muestra: " + error.message);
+      showSnackbar(`Error al rechazar la muestra: ${error.message}`, 'error');
     } finally {
       setIsProcessing(false);
+      handleConfirmClose();
     }
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
-        }
-      }}
-    >
+    <>
+      <Dialog 
+        open={open} 
+        onClose={onClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+          }
+        }}
+      >
       <DialogTitle sx={{ 
         bgcolor: '#39A900', 
         color: 'white', 
@@ -358,6 +392,73 @@ const NotificationDetailModal = ({ notification, open, onClose, onRemove }) => {
         </Button>
       </DialogActions>
     </Dialog>
+
+    {/* Diálogo de Confirmación */}
+    <Dialog
+      open={confirmDialog.open}
+      onClose={handleConfirmClose}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', color: '#f57c00' }}>
+        <WarningIcon sx={{ mr: 1 }} />
+        Confirmar Acción
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body1">
+          {confirmDialog.message}
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ p: 2, gap: 1 }}>
+        <Button 
+          onClick={handleConfirmClose}
+          variant="outlined"
+          sx={{ 
+            color: '#666', 
+            borderColor: '#666',
+            '&:hover': { 
+              bgcolor: '#f5f5f5',
+              borderColor: '#666'
+            }
+          }}
+        >
+          Cancelar
+        </Button>
+        <Button 
+          onClick={() => {
+            if (confirmDialog.type === 'rechazar') {
+              executeRechazarMuestra();
+            }
+          }}
+          variant="contained"
+          color="warning"
+          sx={{ 
+            bgcolor: '#f57c00',
+            '&:hover': { bgcolor: '#ef6c00' }
+          }}
+        >
+          Confirmar
+        </Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Snackbar para mensajes */}
+    <Snackbar
+      open={snackbar.open}
+      autoHideDuration={4000}
+      onClose={handleSnackbarClose}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert 
+        onClose={handleSnackbarClose} 
+        severity={snackbar.severity}
+        sx={{ width: '100%' }}
+        variant="filled"
+      >
+        {snackbar.message}
+      </Alert>
+    </Snackbar>
+  </>
   );
 };
 

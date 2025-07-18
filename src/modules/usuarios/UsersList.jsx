@@ -424,40 +424,232 @@ const UsersList = memo(() => {
         </Box>
       )}
 
-      {/* Diálogo de edición */}
-      <Dialog open={openEdit} onClose={handleCloseEdit} PaperProps={{ sx: { borderRadius: 4, minWidth: 350 } }}>
-        <DialogTitle sx={{ color: primaryColor, fontWeight: 700, textAlign: "center" }}>Editar Usuario</DialogTitle>
-        <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2}>
-            {["nombre", "documento", "telefono", "direccion", "email"].map((field) => (
-              <TextField
-                key={field}
-                fullWidth
-                margin="dense"
-                label={field.charAt(0).toUpperCase() + field.slice(1)}
-                value={editUser?.[field] || ""}
-                onChange={(e) => setEditUser({ ...editUser, [field]: e.target.value })}
-                variant="outlined"
-                sx={{ borderRadius: 2, background: "#f9f9f9" }}
-              />
-            ))}
-            {getRoleName(editUser) && (
-              <TextField
-                fullWidth
-                margin="dense"
-                label="Rol"
-                value={getRoleName(editUser)}
-                InputProps={{ readOnly: true }}
-                variant="outlined"
-                sx={{ borderRadius: 2, background: "#f9f9f9" }}
-              />
-            )}
+      {/* Diálogo de edición mejorado */}
+      <Dialog 
+        open={openEdit} 
+        onClose={handleCloseEdit} 
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ 
+          sx: { 
+            borderRadius: 4, 
+            minWidth: 450,
+            maxWidth: 520,
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+            boxShadow: '0 16px 48px rgba(57, 169, 0, 0.2)',
+            overflow: 'hidden'
+          } 
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: `linear-gradient(135deg, ${primaryColor} 0%, #2d8000 100%)`,
+          color: 'white',
+          textAlign: 'center',
+          py: 3,
+          position: 'relative',
+          fontWeight: 700,
+          fontSize: '1.3rem',
+          boxShadow: '0 4px 12px rgba(57, 169, 0, 0.3)'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            <EditIcon sx={{ fontSize: 28 }} />
+            Editar Usuario
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0, background: 'transparent' }}>
+          {/* Avatar y nombre del usuario */}
+          <Box sx={{ 
+            textAlign: 'center', 
+            py: 3, 
+            px: 3,
+            background: 'white',
+            borderBottom: '2px solid #e9ecef'
+          }}>
+            <Box sx={{ 
+              width: 70, 
+              height: 70, 
+              borderRadius: '50%', 
+              background: `linear-gradient(135deg, ${primaryColor}, #2d8000)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              boxShadow: '0 6px 16px rgba(57, 169, 0, 0.3)',
+              border: '4px solid white'
+            }}>
+              <Typography variant="h3" fontWeight={700} color="white">
+                {editUser?.nombre?.charAt(0)?.toUpperCase() || 'U'}
+              </Typography>
+            </Box>
+            <Typography variant="h6" fontWeight={700} color={primaryColor} mb={1}>
+              {editUser?.nombre || 'Usuario'}
+            </Typography>
+            <Box sx={{ 
+              background: `linear-gradient(135deg, ${primaryColor}15, ${primaryColor}05)`,
+              borderRadius: 2,
+              px: 2,
+              py: 0.5,
+              display: 'inline-block',
+              border: `1px solid ${primaryColor}30`
+            }}>
+              <Typography variant="body2" fontWeight={600} color={primaryColor}>
+                {getRoleName(editUser)}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Formulario de edición */}
+          <Box sx={{ p: 3, background: 'white' }}>
+            <Typography variant="subtitle1" fontWeight={700} color={primaryColor} mb={3} sx={{ 
+              borderLeft: `4px solid ${primaryColor}`,
+              pl: 2,
+              fontSize: '1.1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              📝 Información del Usuario
+            </Typography>
+            
+            <Box display="flex" flexDirection="column" gap={3}>
+              {[
+                { field: "nombre", label: "Nombre Completo", icon: "👤" },
+                { field: "documento", label: "Documento", icon: "🆔" },
+                { field: "telefono", label: "Teléfono", icon: "📱" },
+                { field: "direccion", label: "Dirección", icon: "🏠" },
+                { field: "email", label: "Email", icon: "📧" }
+              ].map(({ field, label, icon }) => (
+                <Box key={field} sx={{ position: 'relative' }}>
+                  <Typography variant="body2" fontWeight={600} color="text.secondary" mb={1} sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1 
+                  }}>
+                    <span>{icon}</span>
+                    {label}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={editUser?.[field] || ""}
+                    onChange={(e) => setEditUser({ ...editUser, [field]: e.target.value })}
+                    variant="outlined"
+                    placeholder={`Ingrese ${label.toLowerCase()}`}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 3,
+                        background: '#f8f9fa',
+                        transition: 'all 0.3s ease',
+                        border: '2px solid transparent',
+                        '&:hover': {
+                          background: '#e9ecef',
+                          borderColor: `${primaryColor}30`
+                        },
+                        '&.Mui-focused': {
+                          background: 'white',
+                          borderColor: primaryColor,
+                          boxShadow: `0 0 0 3px ${primaryColor}15`
+                        },
+                        '& fieldset': {
+                          border: 'none'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        fontWeight: 500,
+                        fontSize: '0.95rem'
+                      }
+                    }}
+                  />
+                </Box>
+              ))}
+              
+              {/* Campo de rol (solo lectura) */}
+              {getRoleName(editUser) && (
+                <Box sx={{ position: 'relative' }}>
+                  <Typography variant="body2" fontWeight={600} color="text.secondary" mb={1} sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1 
+                  }}>
+                    <span>🔐</span>
+                    Rol del Usuario
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={getRoleName(editUser)}
+                    InputProps={{ readOnly: true }}
+                    variant="outlined"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 3,
+                        background: '#f0f0f0',
+                        '& fieldset': {
+                          border: '2px dashed #ccc'
+                        }
+                      },
+                      '& .MuiInputBase-input': {
+                        fontWeight: 600,
+                        color: primaryColor,
+                        fontSize: '0.95rem'
+                      }
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button onClick={handleCloseEdit} sx={{ color: accentColor, fontWeight: 600 }}>Cancelar</Button>
-          <Button onClick={handleEditSubmit} variant="contained" sx={{ background: primaryColor, fontWeight: 700, px: 4 }}>
-            Guardar
+        
+        <DialogActions sx={{ 
+          justifyContent: 'center', 
+          p: 3,
+          background: 'white',
+          borderTop: '2px solid #e9ecef',
+          gap: 2
+        }}>
+          <Button 
+            onClick={handleCloseEdit} 
+            variant="outlined"
+            sx={{ 
+              color: accentColor, 
+              borderColor: '#ddd',
+              fontWeight: 600,
+              px: 4,
+              py: 1.5,
+              borderRadius: 3,
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              borderWidth: 2,
+              '&:hover': {
+                borderColor: accentColor,
+                background: '#f5f5f5'
+              }
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleEditSubmit} 
+            variant="contained" 
+            sx={{ 
+              background: `linear-gradient(135deg, ${primaryColor}, #2d8000)`,
+              color: 'white',
+              fontWeight: 700, 
+              px: 4,
+              py: 1.5,
+              borderRadius: 3,
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              boxShadow: '0 4px 12px rgba(57, 169, 0, 0.4)',
+              '&:hover': {
+                background: `linear-gradient(135deg, #2d8000, ${primaryColor})`,
+                boxShadow: '0 6px 16px rgba(57, 169, 0, 0.5)',
+                transform: 'translateY(-1px)'
+              },
+              transition: 'all 0.3s ease'
+            }}
+          >
+            💾 Guardar Cambios
           </Button>
         </DialogActions>
       </Dialog>      {/* Diálogo de detalle compacto */}

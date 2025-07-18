@@ -43,6 +43,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: "https://backend-registro-muestras.onrender.com",
           changeOrigin: true,
+          secure: false, // Permite certificados autofirmados en desarrollo
           rewrite: (path) => path.replace(/^\/api/, "/api"),
         }
       }

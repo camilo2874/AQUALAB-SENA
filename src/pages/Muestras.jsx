@@ -304,8 +304,7 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       
       // Actualizar el estado de la muestra a rechazada
       const datosActualizacion = {
-        estado: "Rechazada",
-        observaciones: (selectedMuestra.observaciones || '') + `\n[SISTEMA] ${esAceptada ? 'Muestra' : 'Cotización'} rechazada por el cliente`
+        estado: "Rechazada"
       };
 
       await muestrasService.actualizarMuestra(idMuestra, datosActualizacion);
@@ -313,8 +312,7 @@ const DetailMuestraModal = ({ selectedMuestra, onClose, modalStyle, hideClientDa
       // Actualizar la muestra local
       const muestraActualizada = {
         ...selectedMuestra,
-        estado: "Rechazada",
-        observaciones: datosActualizacion.observaciones
+        estado: "Rechazada"
       };
       
       onEstadoChange(muestraActualizada);
