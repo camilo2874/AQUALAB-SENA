@@ -1732,7 +1732,17 @@ const RegistroMuestras: React.FC = () => {
       if (!a?.precio) return sum;
       return sum + parseFloat(a.precio.toString().replace(/,/g, ''));
     }, 0);
-  }, [formData.analisisSeleccionados, analisisDisponibles, formData.tipoAnalisis]);  const renderAnalisisDisponibles = () => {
+  }, [formData.analisisSeleccionados, analisisDisponibles, formData.tipoAnalisis]);
+
+  // Memorizar el array base de análisis para usar en búsquedas y validaciones
+  const baseAnalisisArray = useMemo(() => {
+    if (!analisisDisponibles || !formData.tipoAnalisis) return [];
+    return formData.tipoAnalisis === TIPOS_ANALISIS_ENUM.FISICOQUIMICO
+      ? analisisDisponibles.fisicoquimico || []
+      : analisisDisponibles.microbiologico || [];
+  }, [analisisDisponibles, formData.tipoAnalisis]);
+
+  const renderAnalisisDisponibles = () => {
     if (!formData.tipoAnalisis) {
       return (
         <Alert 
@@ -1916,10 +1926,34 @@ const RegistroMuestras: React.FC = () => {
           }}
           icon={<InfoIcon sx={{ fontSize: '1.6rem' }} />}
         >
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
-            🔍 No se encontraron análisis que coincidan con "{debouncedSearchTerm}". 
-            <br />Intenta con otros términos de búsqueda.
-          </Typography>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100', mb: 2 }}>
+              🔍 No se encontraron análisis que coincidan con "{debouncedSearchTerm}".
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666', mb: 2 }}>
+              Intenta con otros términos de búsqueda o limpia la búsqueda para ver todos los análisis disponibles.
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setSearchTerm('')}
+              sx={{
+                color: '#39A900',
+                borderColor: '#39A900',
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': {
+                  borderColor: '#2e7d00',
+                  backgroundColor: 'rgba(57, 169, 0, 0.08)',
+                  color: '#2e7d00'
+                }
+              }}
+              startIcon={<ClearIcon />}
+            >
+              Limpiar búsqueda y ver todos
+            </Button>
+          </Box>
         </Alert>
       );
     }
@@ -2003,54 +2037,86 @@ const RegistroMuestras: React.FC = () => {
 
         {/* Contenido de análisis */}
         <Box sx={{ p: 3 }}>
-          {/* Barra de búsqueda y filtros */}          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-            <TextField
-              placeholder="🔍 Buscar análisis..."
-              variant="outlined"
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ 
-                flexGrow: 1,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  bgcolor: 'rgba(57, 169, 0, 0.05)',
-                  border: '2px solid transparent',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    bgcolor: 'rgba(57, 169, 0, 0.08)',
-                    border: '2px solid rgba(57, 169, 0, 0.2)'
-                  },
-                  '&.Mui-focused': {
-                    bgcolor: 'white',
-                    border: '2px solid #39A900',
-                    boxShadow: '0 4px 12px rgba(57, 169, 0, 0.15)'
+          {/* Barra de búsqueda y filtros */}          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ flexGrow: 1 }}>
+              <TextField
+                placeholder="🔍 Buscar análisis..."
+                variant="outlined"
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                error={Boolean(searchTerm.trim() && isSearchErrorState)}
+                sx={{ 
+                  width: '100%',
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    bgcolor: isSearchErrorState && searchTerm.trim()
+                      ? 'rgba(211, 47, 47, 0.05)' 
+                      : 'rgba(57, 169, 0, 0.05)',
+                    border: '2px solid transparent',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      bgcolor: isSearchErrorState && searchTerm.trim()
+                        ? 'rgba(211, 47, 47, 0.08)' 
+                        : 'rgba(57, 169, 0, 0.08)',
+                      border: isSearchErrorState && searchTerm.trim()
+                        ? '2px solid rgba(211, 47, 47, 0.2)' 
+                        : '2px solid rgba(57, 169, 0, 0.2)'
+                    },
+                    '&.Mui-focused': {
+                      bgcolor: 'white',
+                      border: isSearchErrorState && searchTerm.trim()
+                        ? '2px solid #d32f2f' 
+                        : '2px solid #39A900',
+                      boxShadow: isSearchErrorState && searchTerm.trim()
+                        ? '0 4px 12px rgba(211, 47, 47, 0.15)' 
+                        : '0 4px 12px rgba(57, 169, 0, 0.15)'
+                    },
+                    '&.Mui-error': {
+                      bgcolor: 'rgba(211, 47, 47, 0.05)',
+                      border: '2px solid rgba(211, 47, 47, 0.3)',
+                    }
                   }
-                }
-              }}
-              InputProps={{
-                endAdornment: searchTerm && (
-                  <IconButton
-                    size="small"
-                    onClick={() => setSearchTerm('')}
-                    sx={{ 
-                      color: '#666',
-                      '&:hover': { 
-                        color: '#39A900',
-                        bgcolor: 'rgba(57, 169, 0, 0.05)' 
-                      }
-                    }}
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                )
-              }}
-            /><Button
+                }}
+                InputProps={{
+                  endAdornment: searchTerm && (
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchTerm('')}
+                      sx={{ 
+                        color: isSearchErrorState && searchTerm.trim() ? '#d32f2f' : '#666',
+                        '&:hover': { 
+                          color: isSearchErrorState && searchTerm.trim() ? '#b71c1c' : '#39A900',
+                          bgcolor: isSearchErrorState && searchTerm.trim()
+                            ? 'rgba(211, 47, 47, 0.05)' 
+                            : 'rgba(57, 169, 0, 0.05)' 
+                        }
+                      }}
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  )
+                }}
+              />
+              {isSearchErrorState && searchTerm.trim() && (
+                <FormHelperText error sx={{ 
+                  mt: 0.5, 
+                  ml: 1.5,
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}>
+                  <WarningIcon sx={{ fontSize: '1rem' }} />
+                  No se encontraron resultados. Haz clic en "X" para limpiar la búsqueda.
+                </FormHelperText>
+              )}
+            </Box><Button
               variant="outlined"
               size="small"
               startIcon={<SelectAllIcon />}
               onClick={() => {
-                baseArr.forEach(a => {
+                baseAnalisisArray.forEach(a => {
                   if (!formData.analisisSeleccionados.includes(a.nombre)) {
                     handleAnalisisChange(a.nombre);
                   }
@@ -2074,7 +2140,7 @@ const RegistroMuestras: React.FC = () => {
               size="small"
               startIcon={<ClearIcon />}
               onClick={() => {
-                baseArr.forEach(a => {
+                baseAnalisisArray.forEach(a => {
                   if (formData.analisisSeleccionados.includes(a.nombre)) {
                     handleAnalisisChange(a.nombre);
                   }
@@ -2315,6 +2381,14 @@ const RegistroMuestras: React.FC = () => {
       </Card>
     );
   };
+
+  // Variable para determinar si hay resultados de búsqueda
+  const hasSearchResults = useMemo(() => {
+    return !searchTerm.trim() || filterAnalisisBySearch(baseAnalisisArray).length > 0;
+  }, [searchTerm, baseAnalisisArray]);
+
+  const isSearchErrorState = !hasSearchResults;
+
   return (
     <Box sx={{ position: 'relative' }}>
       {/* CSS Global para animaciones de alertas */}
